@@ -9,6 +9,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # VERILATOR_ROOT. Versions pinned in docs/versions.md.
 find_package(verilator REQUIRED)
 
+option(VB_BUILD_GUI "Build the Dear ImGui SDL2/Metal GUI (macOS)" ON)
+
 enable_testing()
-add_subdirectory(src)
+add_subdirectory(examples)  # verilated design libraries (sim_*)
+add_subdirectory(src)       # engine, constraints, board, gui
 add_subdirectory(tests)

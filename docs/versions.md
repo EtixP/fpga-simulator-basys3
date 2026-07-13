@@ -9,6 +9,8 @@ workflow must pin these same versions.
 | CMake | 4.0.0 | Homebrew | `find_package(verilator)` + `verilate()` verified against it |
 | Apple clang | 21.0.0 (clang-2100.1.1.101) | Xcode CLT | C++20 |
 | Yosys | 0.66 | Homebrew | installed, first used in phase 3 (synthesis / NetlistEngine) |
+| SDL2 | sdl2-compat 2.32.70 | Homebrew | GUI; found via find_package(SDL2 CONFIG) |
+| Dear ImGui | v1.92.8 | git submodule (third_party/imgui) | pinned to release tag; SDL2+Metal in-tree backends |
 | macOS | Darwin 25.5.0, arm64 | — | Apple Silicon primary target |
 
 ## Verilation flags (all designs)

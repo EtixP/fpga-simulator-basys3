@@ -293,6 +293,28 @@ enforced by code and/or a regression test. The canonical engine interface is
   mechanically derived from Digilent's master file (105 pins, 1 clock, 5
   [current_design] props — counts asserted in test_xdc).
 
+Added in milestone 1.3 (GUI):
+
+- **BoardModel is the GUI's only view of the simulation** (src/board/): it
+  owns the PinBinding and exposes board state (setSwitch/ledState/tick/now).
+  Draw code (src/gui/BoardWindow.cpp) has no direct SimEngine or Verilator
+  include and no reachable engine object — a second, convention-enforced
+  wall behind the SimEngine rule. New peripherals (seven-seg, UART, VGA)
+  join BoardModel as siblings.
+- **Frames advance virtual time by a FIXED cycle count** (kCyclesPerFrame in
+  src/gui/main.mm, default 100'000; real-time ≈ 1.67M at 60 fps). Never
+  "step until N ms elapsed" — tying cycle count to wall clock makes turbo
+  and realtime diverge (R1). Honest pacing arrives in phase 2.
+- **Dear ImGui is a submodule pinned to release tag v1.92.8** with the
+  in-tree SDL2 + Metal backends; the .mm sources need -fobjc-arc; SDL2 comes
+  from Homebrew's sdl2-compat via find_package(SDL2 CONFIG). When touching
+  GUI toolchain wiring, verify a blank ImGui window renders before
+  suspecting board logic.
+- **virtualbasys_gui --frames N --screenshot out.bmp --switches 0111** runs
+  headed-but-finite and dumps the final frame via Metal drawable readback
+  (layer.framebufferOnly=NO) — no macOS screen-recording permission needed.
+  The 1.6 VGA frame dump builds on this readback path.
+
 ## Explicit non-goals
 
 - No synthesis tool of our own (Yosys handles it).

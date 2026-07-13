@@ -13,15 +13,8 @@ add_test(NAME xdc COMMAND test_xdc
   "${CMAKE_SOURCE_DIR}/tests/data/Basys-3-Master-pristine.xdc"
 )
 
-# --- verilated design library: one per example design ---------------------
-add_library(sim_counter STATIC)
-verilate(sim_counter
-  SOURCES ${CMAKE_SOURCE_DIR}/examples/counter.v
-  TOP_MODULE counter
-  VERILATOR_ARGS --public-flat-rw --trace-vcd --timescale 1ns/1ns -Wall
-)
-
 # --- milestone 1.1-1.2 acceptance test ------------------------------------
+# (sim_counter comes from examples/CMakeLists.txt)
 add_executable(test_counter_headless test_counter_headless.cpp)
 target_link_libraries(test_counter_headless PRIVATE
   vb_constraints vb_engine sim_counter
@@ -37,6 +30,13 @@ add_executable(test_engine_contract test_engine_contract.cpp)
 target_link_libraries(test_engine_contract PRIVATE vb_engine sim_counter)
 add_test(NAME engine_contract COMMAND test_engine_contract
   "${CMAKE_CURRENT_BINARY_DIR}/engine_contract_trace.vcd"
+)
+
+# --- BoardModel: the milestone 1.3 acceptance criterion, headless ----------
+add_executable(test_board_model test_board_model.cpp)
+target_link_libraries(test_board_model PRIVATE vb_board vb_engine sim_counter)
+add_test(NAME board_model COMMAND test_board_model
+  "${CMAKE_SOURCE_DIR}/examples/counter.xdc"
 )
 
 # --- inout ports are contractually unsupported (own design + executable) ---
