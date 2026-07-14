@@ -34,10 +34,41 @@ add_test(NAME engine_contract COMMAND test_engine_contract
 
 # --- BoardModel: the milestone 1.3 acceptance criterion, headless ----------
 add_executable(test_board_model test_board_model.cpp)
-target_link_libraries(test_board_model PRIVATE vb_board vb_engine sim_counter)
+target_link_libraries(test_board_model PRIVATE vb_stimulus vb_board vb_engine sim_counter)
 add_test(NAME board_model COMMAND test_board_model
   "${CMAKE_SOURCE_DIR}/examples/counter.xdc"
 )
+
+# --- stimulus/CLI parsing: pure functions, no SDL, no engine ---------------
+add_executable(test_gui_script test_gui_script.cpp)
+target_link_libraries(test_gui_script PRIVATE vb_stimulus)
+add_test(NAME gui_script COMMAND test_gui_script)
+
+# --- milestone 1.4 acceptance: stopwatch golden log (3 simulated seconds) --
+add_executable(test_stopwatch_golden test_stopwatch_golden.cpp)
+target_link_libraries(test_stopwatch_golden PRIVATE vb_board vb_engine sim_stopwatch)
+add_test(NAME stopwatch_golden COMMAND test_stopwatch_golden
+  "${CMAKE_SOURCE_DIR}/examples/stopwatch.xdc"
+  "${CMAKE_SOURCE_DIR}/tests/golden/stopwatch_3s.log"
+)
+# ~15 s at the sim libs' -O2; 10x headroom for CI runners.
+set_tests_properties(stopwatch_golden PROPERTIES TIMEOUT 180)
+
+# --- milestone 1.4 acceptance: VCD opens in real tools ----------------------
+find_program(SURFER_EXECUTABLE surfer)
+add_executable(test_stopwatch_vcd test_stopwatch_vcd.cpp)
+target_link_libraries(test_stopwatch_vcd PRIVATE vb_engine sim_stopwatch)
+add_test(NAME stopwatch_vcd_structural COMMAND test_stopwatch_vcd structural
+  "${CMAKE_CURRENT_BINARY_DIR}/stopwatch_trace.vcd"
+)
+set_tests_properties(stopwatch_vcd_structural PROPERTIES TIMEOUT 120)
+add_test(NAME stopwatch_vcd_surfer COMMAND test_stopwatch_vcd surfer
+  "${CMAKE_CURRENT_BINARY_DIR}/stopwatch_trace.vcd"
+  "${SURFER_EXECUTABLE}"
+)
+# Reuses the structural test's trace; absence of surfer reads SKIP, not PASS.
+set_tests_properties(stopwatch_vcd_surfer PROPERTIES
+  DEPENDS stopwatch_vcd_structural SKIP_RETURN_CODE 77 TIMEOUT 120)
 
 # --- inout ports are contractually unsupported (own design + executable) ---
 # Fixture, not a shipped example, so no -Wall (R5 defers tri-state).

@@ -301,8 +301,8 @@ Added in milestone 1.3 (GUI):
   include and no reachable engine object — a second, convention-enforced
   wall behind the SimEngine rule. New peripherals (seven-seg, UART, VGA)
   join BoardModel as siblings.
-- **Frames advance virtual time by a FIXED cycle count** (kCyclesPerFrame in
-  src/gui/main.mm, default 100'000; real-time ≈ 1.67M at 60 fps). Never
+- **Frames advance virtual time by a FIXED cycle count** (GuiOptions::
+  cyclesPerFrame, default 100'000; real-time ≈ 1.67M at 60 fps). Never
   "step until N ms elapsed" — tying cycle count to wall clock makes turbo
   and realtime diverge (R1). Honest pacing arrives in phase 2.
 - **Dear ImGui is a submodule pinned to release tag v1.92.8** with the
@@ -310,10 +310,67 @@ Added in milestone 1.3 (GUI):
   from Homebrew's sdl2-compat via find_package(SDL2 CONFIG). When touching
   GUI toolchain wiring, verify a blank ImGui window renders before
   suspecting board logic.
-- **virtualbasys_gui --frames N --screenshot out.bmp --switches 0111** runs
-  headed-but-finite and dumps the final frame via Metal drawable readback
+- **Demo executables run headed-but-finite** (`--frames N --screenshot out.bmp`)
+  and dump the final frame via Metal drawable readback
   (layer.framebufferOnly=NO) — no macOS screen-recording permission needed.
   The 1.6 VGA frame dump builds on this readback path.
+
+Added in milestone 1.4 (seven-seg, buttons, structured log, stopwatch golden):
+
+- **Output observation is an ABSOLUTE virtual-time grid**: BoardModel samples
+  outputs exactly when now() crosses a multiple of kSampleChunkCycles (1000
+  cycles = 10 us), never relative to tick() call boundaries — so the
+  structured log is a pure function of (stimulus schedule, total cycles),
+  invariant to frame sizes, driver refactors, and phase-2 pacing. The grid is
+  the SLOW-peripheral observation mechanism (seven-seg ~kHz mux, LEDs, 1.5's
+  UART at ~10.4k cycles/bit); 1.6's VGA (4 cycles/pixel) needs an engine-side
+  tap, not a finer grid.
+- **Seven-seg capture contract**: a digit is guaranteed captured iff its
+  ACTIVE-anode window (dwell minus ghost-prevention blanking) spans >= 2
+  chunks; sub-chunk active windows on chunk-multiple mux periods phase-lock
+  to permanently dark (verified failure mode — documented, unsupported).
+  Persistence window kPersistCycles = 2M (20 ms VIRTUAL time) exceeds
+  Digilent's worst recommended 16 ms full-refresh period. Fused-display
+  staleness bound: 4*dwell + one chunk.
+- **Structured-log semantics (v=1, header frozen)**: outputs chunk-observed,
+  inputs exact-cycle (a poke at N is first sampled at edge N+1),
+  transition-only, canonical same-stamp order (SSEG digits 0..3 content line
+  before .dp, then LEDs ascending), SSEG content is character-level.
+  Collection is OPT-IN (a busy design otherwise accumulates ~40k lines/s).
+  Chunk quantization is a fixed observation grid, NOT nondeterminism; the
+  exact-cycle refinement path is engine change-callbacks (phase 2+).
+  Changing kSampleChunkCycles is an expected-golden-churn event.
+- **Buttons are momentary state with caller-owned duration**: setButton
+  persists until cleared — GUI presses span frames via widget
+  activate/deactivate edges; scripts hold via paired events. Debounce needs
+  >= 1M cycles of stable input, so one-frame pulses are correctly swallowed
+  (golden regression covers this).
+- **Scripts are CYCLE-indexed** (`--at CYCLE:NAME=V`), never frame-indexed:
+  frames are not a stable unit (cyclesPerFrame is tweakable; phase-2 pacing
+  varies it). GuiApp splits frame ticks at event cycles; total cycles per
+  frame stays fixed.
+- **Per-demo GUI executables** (virtualbasys_counter, virtualbasys_stopwatch)
+  apply the one-verilated-lib rule to demos; interim until the phase-2
+  `virtualbasys run` CLI.
+- **sim_* libraries verilate with OPT_FAST/OPT_GLOBAL -O2**: the default
+  (empty) build type left generated code at -O0 — measured 3.3 vs 20
+  Mcycles/s, i.e. a ~90 s vs ~15 s stopwatch golden. Honest perf baseline:
+  ~20 Mcycles/s = 0.2x real-time under --public-flat-rw + --trace-vcd — R1's
+  "examples exceed real-time" guide is NOT currently met; the phase-2 speed
+  indicator starts from this number (docs/versions.md).
+- **VCD acceptance = in-test structural validation + Surfer headless gate.**
+  Surfer (`surfer server --file X`) exits 1 only on HEADER-corrupt input; on
+  body corruption it logs "Loaded header", then a loader thread panics
+  ("Surfer crashed due to a panic") WITHOUT exiting — so the gate must wait
+  for the "Loaded body" line and treat panic banners as failure (it does).
+  Homebrew's gtkwave cask is DISABLED (upstream discontinued, 2025-10-29) —
+  never plan around brew-installed GTKWave; manual GTKWave verification uses
+  the GitHub-release app.
+- **Example RTL counter idiom**: full 32-bit counters compared directly
+  against integer localparams with sized increments — the verified
+  -Wall-clean Verilog-2005 form ($clog2-sized counters trip WIDTHEXPAND;
+  width-derived localparams trip WIDTHTRUNC). DIGIT_DWELL = 25000 (250 us per
+  digit, 1 ms full refresh) is what the Basys 3 RM means by "~1 kHz refresh".
 
 ## Explicit non-goals
 

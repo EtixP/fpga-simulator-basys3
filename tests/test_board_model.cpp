@@ -9,6 +9,7 @@
 #include "check.h"
 #include "constraints/Xdc.h"
 #include "engine/VerilatorEngine.h"
+#include "gui/Stimulus.h"
 
 #include <fstream>
 #include <sstream>
@@ -82,6 +83,35 @@ int main(int argc, char** argv) {
   CHECK(!board.switchState(9));
   board.setSwitch(99, true);  // out of range entirely
   CHECK(!board.ledState(99));
+
+  // Buttons on the counter: only BTNC is bound (it's the reset). Pressing it
+  // through BoardModel clears the count like the hardware would; unbound
+  // buttons are ignored.
+  CHECK(board.hasButton(vb::Button::C));
+  CHECK(!board.hasButton(vb::Button::U));
+  board.setButton(vb::Button::U, true);  // ignored, no throw
+  CHECK(!board.buttonState(vb::Button::U));
+  board.setButton(vb::Button::C, true);
+  CHECK(board.buttonState(vb::Button::C));
+  board.tick(2);
+  CHECK_EQ(ledValue(board), 0);  // reset cleared the count
+  board.setButton(vb::Button::C, false);
+
+  // No seven-seg on the counter: the display doesn't exist on this board.
+  CHECK(!board.hasDisplay());
+  CHECK_EQ(board.digitSegments(0), 0);
+  CHECK_EQ(board.digitChar(0), ' ');
+
+  // applyStimulus dispatches through the same setters the GUI uses (the
+  // headless half of the --at path; parsing is covered by test_gui_script).
+  CHECK(vb::applyStimulus(board, {0, "SW3", true}));
+  CHECK(board.switchState(3));
+  CHECK(vb::applyStimulus(board, {0, "SW3", false}));
+  CHECK(!board.switchState(3));
+  CHECK(vb::applyStimulus(board, {0, "BTNC", true}));
+  CHECK(board.buttonState(vb::Button::C));
+  CHECK(vb::applyStimulus(board, {0, "BTNC", false}));
+  CHECK(!vb::applyStimulus(board, {0, "NOTATHING", true}));
 
   std::puts("test_board_model: PASS");
   return 0;

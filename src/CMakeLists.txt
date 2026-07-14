@@ -20,10 +20,20 @@ add_library(vb_constraints STATIC
 )
 target_include_directories(vb_constraints PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-# Board-level state the GUI renders from (switches, LEDs; later peripherals
-# slot in as siblings). Engine-agnostic: SimEngine.h + PinBinding only.
-add_library(vb_board STATIC board/BoardModel.cpp)
+# Board-level state the GUI renders from. Peripherals are composed classes
+# (SevenSeg, SimLog; UART/VGA join as siblings). Engine-agnostic: SimEngine.h
+# + PinBinding only.
+add_library(vb_board STATIC
+  board/BoardModel.cpp
+  board/SevenSeg.cpp
+  board/SimLog.cpp
+)
 target_link_libraries(vb_board PUBLIC vb_constraints)
+
+# Scripted stimulus + demo CLI parsing: pure C++ (no SDL/ImGui), built
+# unconditionally so headless tests cover it even with VB_BUILD_GUI=OFF.
+add_library(vb_stimulus STATIC gui/Stimulus.cpp gui/DemoCli.cpp)
+target_link_libraries(vb_stimulus PUBLIC vb_board)
 
 # --- GUI: Dear ImGui (submodule @ v1.92.8) + SDL2 + Metal -------------------
 if(VB_BUILD_GUI AND APPLE)
@@ -50,10 +60,20 @@ if(VB_BUILD_GUI AND APPLE)
   set_source_files_properties(${IMGUI_DIR}/backends/imgui_impl_metal.mm
     PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
 
-  add_executable(virtualbasys_gui gui/main.mm gui/BoardWindow.cpp)
-  set_source_files_properties(gui/main.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
-  target_compile_definitions(virtualbasys_gui PRIVATE
+  # Window plumbing + draw code, engine-free (sees BoardModel only).
+  add_library(vb_gui STATIC gui/GuiApp.mm gui/BoardWindow.cpp)
+  set_source_files_properties(gui/GuiApp.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+  target_link_libraries(vb_gui PUBLIC vb_stimulus vb_board vb_imgui)
+
+  # One demo executable per verilated design (decision log); interim until
+  # the phase-2 `virtualbasys run` CLI subsumes them.
+  add_executable(virtualbasys_counter gui/main_counter.cpp)
+  target_compile_definitions(virtualbasys_counter PRIVATE
     VB_DEFAULT_XDC="${CMAKE_SOURCE_DIR}/examples/counter.xdc")
-  target_link_libraries(virtualbasys_gui PRIVATE
-    vb_board vb_engine vb_imgui sim_counter)
+  target_link_libraries(virtualbasys_counter PRIVATE vb_gui vb_engine sim_counter)
+
+  add_executable(virtualbasys_stopwatch gui/main_stopwatch.cpp)
+  target_compile_definitions(virtualbasys_stopwatch PRIVATE
+    VB_DEFAULT_XDC="${CMAKE_SOURCE_DIR}/examples/stopwatch.xdc")
+  target_link_libraries(virtualbasys_stopwatch PRIVATE vb_gui vb_engine sim_stopwatch)
 endif()

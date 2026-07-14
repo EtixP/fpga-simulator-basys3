@@ -1,0 +1,206 @@
+// SDL2 + Metal + Dear ImGui plumbing for the virtual board window, following
+// ImGui's canonical examples/example_sdl2_metal/main.mm. Engine construction
+// happens in the per-demo mains; this file sees only BoardModel.
+
+#import <Metal/Metal.h>
+#import <QuartzCore/QuartzCore.h>
+
+#include "gui/GuiApp.h"
+
+#include "board/BoardModel.h"
+#include "gui/BoardWindow.h"
+
+#include "imgui.h"
+#include "imgui_impl_metal.h"
+#include "imgui_impl_sdl2.h"
+#include <SDL.h>
+
+#include <cstdio>
+#include <fstream>
+#include <vector>
+
+namespace vb {
+
+namespace {
+
+// Write a BGRA8 texture readback as a 24-bit BMP (bottom-up, 4-byte row
+// padding). The 1.6 VGA frame dumps build on this readback path.
+bool writeBmp(const std::string& path, const uint8_t* bgra, uint32_t w, uint32_t h) {
+  const uint32_t rowBytes = ((w * 3 + 3) / 4) * 4;
+  const uint32_t imageSize = rowBytes * h;
+  const uint32_t fileSize = 54 + imageSize;
+  uint8_t header[54] = {'B', 'M'};
+  auto put32 = [&](int off, uint32_t v) {
+    header[off] = v & 0xFF; header[off + 1] = (v >> 8) & 0xFF;
+    header[off + 2] = (v >> 16) & 0xFF; header[off + 3] = (v >> 24) & 0xFF;
+  };
+  put32(2, fileSize); put32(10, 54); put32(14, 40);
+  put32(18, w); put32(22, h);
+  header[26] = 1; header[28] = 24;
+  put32(34, imageSize);
+  std::ofstream out(path, std::ios::binary);
+  if (!out.good()) return false;
+  out.write(reinterpret_cast<char*>(header), 54);
+  std::string row(rowBytes, '\0');
+  for (int32_t y = static_cast<int32_t>(h) - 1; y >= 0; --y) {
+    const uint8_t* src = bgra + static_cast<size_t>(y) * w * 4;
+    for (uint32_t x = 0; x < w; ++x) {
+      row[x * 3 + 0] = static_cast<char>(src[x * 4 + 0]);
+      row[x * 3 + 1] = static_cast<char>(src[x * 4 + 1]);
+      row[x * 3 + 2] = static_cast<char>(src[x * 4 + 2]);
+    }
+    out.write(row.data(), rowBytes);
+  }
+  return out.good();
+}
+
+// Advance one frame of virtual time, applying scripted stimulus at exact
+// cycles by splitting the tick around each event. Total per frame is always
+// exactly cyclesPerFrame, so --frames determinism is untouched.
+void advanceFrame(BoardModel& board, const GuiOptions& opts, size_t& nextEvent) {
+  const uint64_t frameEnd = board.now() + opts.cyclesPerFrame;
+  while (true) {
+    while (nextEvent < opts.stimulus.size() &&
+           opts.stimulus[nextEvent].cycle <= board.now()) {
+      applyStimulus(board, opts.stimulus[nextEvent]);
+      ++nextEvent;
+    }
+    if (board.now() >= frameEnd) break;
+    uint64_t target = frameEnd;
+    if (nextEvent < opts.stimulus.size() && opts.stimulus[nextEvent].cycle < frameEnd)
+      target = opts.stimulus[nextEvent].cycle;
+    board.tick(target - board.now());
+  }
+}
+
+}  // namespace
+
+int runBoardGui(BoardModel& board, const GuiOptions& opts) {
+  if (!opts.logPath.empty()) board.setLogEnabled(true);
+
+  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
+    std::fprintf(stderr, "error: SDL_Init: %s\n", SDL_GetError());
+    return 1;
+  }
+  SDL_SetHint(SDL_HINT_RENDER_DRIVER, "metal");
+  SDL_Window* window = SDL_CreateWindow(opts.windowTitle.c_str(), 100, 100, 820, 470,
+                                        SDL_WINDOW_ALLOW_HIGHDPI);
+  if (!window) {
+    std::fprintf(stderr, "error: SDL_CreateWindow: %s\n", SDL_GetError());
+    return 1;
+  }
+  SDL_Renderer* renderer =
+      SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+  if (!renderer) {
+    std::fprintf(stderr, "error: SDL_CreateRenderer: %s\n", SDL_GetError());
+    return 1;
+  }
+  CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(renderer);
+  layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+  if (!opts.screenshotPath.empty()) layer.framebufferOnly = NO;  // allow readback
+
+  IMGUI_CHECKVERSION();
+  ImGui::CreateContext();
+  // No imgui.ini: fixed-layout window; headless runs must not litter cwd.
+  ImGui::GetIO().IniFilename = nullptr;
+  ImGui::StyleColorsDark();
+  ImGui_ImplMetal_Init(layer.device);
+  ImGui_ImplSDL2_InitForMetal(window);
+
+  id<MTLCommandQueue> commandQueue = [layer.device newCommandQueue];
+  MTLRenderPassDescriptor* renderPass = [MTLRenderPassDescriptor new];
+
+  bool done = false;
+  bool artifactFailure = false;  // failed --screenshot/--log writes = nonzero exit
+  long frame = 0;
+  size_t nextEvent = 0;
+  while (!done) {
+    @autoreleasepool {
+      // --frames 0 is a pure parse/launch smoke: exit before ticking.
+      if (opts.maxFrames >= 0 && frame >= opts.maxFrames) break;
+
+      SDL_Event event;
+      while (SDL_PollEvent(&event)) {
+        ImGui_ImplSDL2_ProcessEvent(&event);
+        if (event.type == SDL_QUIT) done = true;
+        if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE)
+          done = true;
+      }
+
+      int width, height;
+      SDL_GetRendererOutputSize(renderer, &width, &height);
+      layer.drawableSize = CGSizeMake(width, height);
+      id<CAMetalDrawable> drawable = [layer nextDrawable];
+      // Tick only when this iteration will actually render: one counted
+      // frame == exactly cyclesPerFrame of virtual time even if the drawable
+      // pool stalls, so --frames N always lands on N * cyclesPerFrame cycles.
+      if (!drawable) continue;
+
+      advanceFrame(board, opts, nextEvent);
+
+      id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
+      renderPass.colorAttachments[0].clearColor = MTLClearColorMake(0.10, 0.11, 0.12, 1.0);
+      renderPass.colorAttachments[0].texture = drawable.texture;
+      renderPass.colorAttachments[0].loadAction = MTLLoadActionClear;
+      renderPass.colorAttachments[0].storeAction = MTLStoreActionStore;
+      id<MTLRenderCommandEncoder> encoder =
+          [commandBuffer renderCommandEncoderWithDescriptor:renderPass];
+
+      ImGui_ImplMetal_NewFrame(renderPass);
+      ImGui_ImplSDL2_NewFrame();
+      ImGui::NewFrame();
+      drawBoardWindow(board);
+      ImGui::Render();
+      ImGui_ImplMetal_RenderDrawData(ImGui::GetDrawData(), commandBuffer, encoder);
+
+      [encoder endEncoding];
+      [commandBuffer presentDrawable:drawable];
+      [commandBuffer commit];
+
+      if (opts.maxFrames >= 0 && ++frame >= opts.maxFrames) {
+        done = true;
+        if (!opts.screenshotPath.empty()) {
+          [commandBuffer waitUntilCompleted];
+          id<MTLTexture> tex = drawable.texture;
+          const uint32_t w = static_cast<uint32_t>(tex.width);
+          const uint32_t h = static_cast<uint32_t>(tex.height);
+          std::vector<uint8_t> pixels(static_cast<size_t>(w) * h * 4);
+          [tex getBytes:pixels.data()
+              bytesPerRow:static_cast<NSUInteger>(w) * 4
+               fromRegion:MTLRegionMake2D(0, 0, w, h)
+              mipmapLevel:0];
+          if (!writeBmp(opts.screenshotPath, pixels.data(), w, h)) {
+            std::fprintf(stderr, "error: could not write screenshot '%s'\n",
+                         opts.screenshotPath.c_str());
+            artifactFailure = true;
+          }
+        }
+      }
+    }
+  }
+
+  if (nextEvent < opts.stimulus.size())
+    std::fprintf(stderr, "warning: %zu scripted --at event(s) beyond the run horizon "
+                         "were never applied\n",
+                 opts.stimulus.size() - nextEvent);
+
+  if (!opts.logPath.empty()) {
+    std::ofstream out(opts.logPath, std::ios::binary);
+    for (const auto& line : board.structuredLog()) out << line << '\n';
+    out.flush();
+    if (!out.good()) {
+      std::fprintf(stderr, "error: could not write log '%s'\n", opts.logPath.c_str());
+      artifactFailure = true;
+    }
+  }
+
+  ImGui_ImplMetal_Shutdown();
+  ImGui_ImplSDL2_Shutdown();
+  ImGui::DestroyContext();
+  SDL_DestroyRenderer(renderer);
+  SDL_DestroyWindow(window);
+  SDL_Quit();
+  return artifactFailure ? 1 : 0;
+}
+
+}  // namespace vb
