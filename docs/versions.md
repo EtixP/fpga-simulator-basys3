@@ -42,11 +42,39 @@ is NOT currently met; the phase-2 speed indicator ("sim speed: N MHz — 0.NNx
 real-time") starts from these numbers. Without the -O2 verilate flags the
 same run is ~3.3 Mcycles/s (~90 s golden test) — do not remove them.
 
+Flag-cost decomposition (measured 2026-07-15, identical 100M-cycle harness,
+stopwatch, -O2):
+
+| verilation | Mcycles/s | vs real-time |
+|---|---|---|
+| bare (ports via members; no public, no trace) | 29.8 | 0.30x |
+| + `--public-flat-rw` | 21.6 | 0.22x |
+| + `--trace-vcd` compiled in, dumping OFF | 21.6 | 0.22x |
+
+Conclusions: compiled-in trace support is FREE when not dumping (the earlier
+"costs some eval speed" note above is wrong for 5.050 — kept for history);
+`--public-flat-rw` costs ~28%; and the dominant limit is Verilator's per-eval
+overhead on tiny designs at two evals/cycle — even the bare ceiling is 0.3x
+real-time. Phase-2 levers, in order of value: single-eval-per-cycle stepping
+for posedge-only designs (~2x), then selective public metacomments (~1.4x).
+The speed indicator should not promise what the ceiling cannot deliver.
+
 ## VCD viewer verification (R3 / milestone 1.4)
 
 - Surfer 0.7.0 (Homebrew): automated gate in ctest (`stopwatch_vcd_surfer`)
   waits for headless-server "Loaded body" and fails on parse errors or loader
   panics.
-- GTKWave: Homebrew cask disabled upstream; manual verification via the
-  GitHub-release app is PENDING — recorded here so the half-verified state of
-  the "opens in GTKWave/Surfer" criterion is explicit, not implied.
+- GTKWave: VERIFIED 2026-07-15 against GTKWave Analyzer v3.3.116 built from
+  the GitHub release source (gtk+3 + tcl-tk@8 via Homebrew; one-line quartz
+  patch: WAVE_USE_XID excluded on __APPLE__ — GtkPlug/GtkSocket are
+  X11-only). stopwatch_trace.vcd (500k cycles) loaded cleanly; Tcl-scripted
+  attestation printed maxtime=4999995 timedim=n (10 ns cycles — 100 MHz, not
+  the 1.1-era 1 ps regression), clk samples at 5/10/15 ns = 1/0/1 (10 ns
+  period confirmed), and all 31 facs of the TOP -> stopwatch hierarchy
+  including internal registers (db_cnt, running, sel, BCD chain). This closes
+  the GTKWave half of the 1.4 "opens in GTKWave/Surfer" criterion.
+  (Homebrew's gtkwave cask remains disabled upstream; the build recipe above
+  is the reproducible path. Caveat: the Tcl attestation needs an interactive
+  Aqua session — Tk 8.6 throws NSInvalidArgumentException in headless/agent
+  contexts, though GTKWave's loader still prints the matching "[4999995] end
+  time" before Tk init.)

@@ -372,6 +372,40 @@ Added in milestone 1.4 (seven-seg, buttons, structured log, stopwatch golden):
   width-derived localparams trip WIDTHTRUNC). DIGIT_DWELL = 25000 (250 us per
   digit, 1 ms full refresh) is what the Basys 3 RM means by "~1 kHz refresh".
 
+Added in milestone 1.5 (UART):
+
+- **UART events joined the single structured log — header v=2** (R3 defines
+  ONE log; the round-trip reads in order in one stream). Goldens regenerated;
+  the stopwatch diff was verified header-lines-only before commit.
+- **TX is a grid-observed sibling observer, RX is exact-cycle**: UartTxDecoder
+  samples the line at grid crossings (safe while one bit >= ~4 chunks, i.e.
+  down to ~25 kBd at the 1000-cycle chunk); UartRxDriver bit edges are poked
+  at precise cycles — BoardModel::tick additionally splits stepping at RX
+  edges. Log events are byte-level (start-bit stamp for RX, stop-bit grid
+  crossing for TX); per-bit pokes are not logged.
+- **UART_RX idles HIGH**: BoardModel pokes it high at construction — the
+  2-state zero-init would otherwise present a spurious start bit at power-on.
+  Designs must still btnC-reset their RX synchronizers (R6): the engine
+  settles t=0 with all inputs low before the poke lands.
+- **Echo designs need a one-deep RX->TX pending buffer**: a TX frame is busy
+  10*BIT+1 cycles while back-to-back input arrives every 10*BIT — without the
+  buffer every byte after the first lands on the busy-clearing edge and drops
+  (uart_echo.v documents this).
+- **The RX driver owns the line through the stop bit's FULL duration**: a
+  send() issued during the stop tail defers its start bit to frameStart +
+  10*BIT rather than truncating the frame in flight (truncation silently
+  dropped the previous byte — panel-found, regression-tested). Overdue RX
+  edges apply late-but-deterministically if a caller advances the engine
+  around BoardModel::tick.
+- **`--send CYCLE:TEXT`** scripts UART input through the same
+  BoardModel::sendUartText path as the GUI console widget.
+- **Perf decomposition is in docs/versions.md** (bare 29.8 / +public-flat-rw
+  21.6 / +trace-compiled-but-off 21.6 Mcycles/s): trace support is FREE when
+  off; --public-flat-rw costs ~28%; the 0.3x bare ceiling is Verilator
+  per-eval overhead at two evals/cycle — phase-2 levers ranked there. The
+  GTKWave half of the 1.4 VCD criterion is closed (attestation recorded in
+  docs/versions.md, 2026-07-15).
+
 ## Explicit non-goals
 
 - No synthesis tool of our own (Yosys handles it).

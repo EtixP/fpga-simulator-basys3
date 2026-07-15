@@ -20,3 +20,11 @@ verilate(sim_stopwatch
   OPT_FAST "-O2" OPT_GLOBAL "-O2"
   VERILATOR_ARGS --public-flat-rw --trace-vcd --timescale 1ns/1ns -Wall
 )
+
+add_library(sim_uart_echo STATIC)
+verilate(sim_uart_echo
+  SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/uart_echo.v
+  TOP_MODULE uart_echo
+  OPT_FAST "-O2" OPT_GLOBAL "-O2"
+  VERILATOR_ARGS --public-flat-rw --trace-vcd --timescale 1ns/1ns -Wall
+)

@@ -54,6 +54,15 @@ add_test(NAME stopwatch_golden COMMAND test_stopwatch_golden
 # ~15 s at the sim libs' -O2; 10x headroom for CI runners.
 set_tests_properties(stopwatch_golden PROPERTIES TIMEOUT 180)
 
+# --- milestone 1.5 acceptance: uart_echo round-trips "hello", byte-exact ----
+add_executable(test_uart_echo test_uart_echo.cpp)
+target_link_libraries(test_uart_echo PRIVATE vb_board vb_engine sim_uart_echo)
+add_test(NAME uart_echo COMMAND test_uart_echo
+  "${CMAKE_SOURCE_DIR}/examples/uart_echo.xdc"
+  "${CMAKE_SOURCE_DIR}/tests/golden/uart_echo.log"
+)
+set_tests_properties(uart_echo PROPERTIES TIMEOUT 60)
+
 # --- milestone 1.4 acceptance: VCD opens in real tools ----------------------
 find_program(SURFER_EXECUTABLE surfer)
 add_executable(test_stopwatch_vcd test_stopwatch_vcd.cpp)

@@ -1,5 +1,6 @@
 #include "gui/GuiApp.h"
 
+#include <algorithm>
 #include <charconv>
 
 namespace vb {
@@ -27,6 +28,20 @@ DemoArgs parseDemoArgs(int argc, char** argv, std::string defaultXdc) {
       out.gui.logPath = argv[++i];
     } else if (arg == "--at" && hasValue) {
       atSpecs.push_back(argv[++i]);
+    } else if (arg == "--send" && hasValue) {
+      const std::string spec = argv[++i];
+      const size_t colon = spec.find(':');
+      SendEvent e;
+      const auto res = colon == std::string::npos
+                           ? std::from_chars(spec.data(), spec.data(), e.cycle)
+                           : std::from_chars(spec.data(), spec.data() + colon, e.cycle);
+      if (colon == std::string::npos || res.ec != std::errc{} ||
+          res.ptr != spec.data() + colon || colon + 1 >= spec.size()) {
+        out.errors.push_back("--send '" + spec + "': expected CYCLE:TEXT");
+      } else {
+        e.text = spec.substr(colon + 1);
+        out.gui.sends.push_back(std::move(e));
+      }
     } else if (arg == "--switches" && hasValue) {
       // Rightmost character is SW0; sugar for --at 0:SWn=1. Validate here so
       // errors name --switches, not the expanded --at specs.
@@ -49,6 +64,8 @@ DemoArgs parseDemoArgs(int argc, char** argv, std::string defaultXdc) {
   StimulusParse parsed = parseStimulus(atSpecs);
   out.gui.stimulus = std::move(parsed.events);
   for (auto& e : parsed.errors) out.errors.push_back(std::move(e));
+  std::stable_sort(out.gui.sends.begin(), out.gui.sends.end(),
+                   [](const SendEvent& a, const SendEvent& b) { return a.cycle < b.cycle; });
   return out;
 }
 

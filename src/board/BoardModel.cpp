@@ -20,7 +20,32 @@ BoardModel::BoardModel(SimEngine& engine, PinBinding binding)
   dpPin_ = binding_.find("DP");
   displayBound_ = std::any_of(anPins_.begin(), anPins_.end(),
                               [](const BoundSignal* p) { return p != nullptr; });
+  uartTxPin_ = binding_.find("UART_TX");
+  uartRxPin_ = binding_.find("UART_RX");
+  // A real serial line idles HIGH (host-side pull-up); the engine's 2-state
+  // zero-init would otherwise present a spurious start bit at power-on.
+  // (Designs should still btnC-reset their synchronizers per R6 — the
+  // engine settles t=0 with all inputs low before this poke lands.)
+  if (uartRxPin_) binding_.setPin(engine_, "UART_RX", true);
   for (uint32_t i = 0; i < kDigitCount; ++i) prevDigitChar_[i] = ' ';
+}
+
+namespace {
+std::string byteRepr(uint8_t b) {
+  char buf[16];
+  const char c = (b >= 0x20 && b < 0x7F) ? static_cast<char>(b) : '.';
+  std::snprintf(buf, sizeof buf, "0x%02X '%c'", b, c);
+  return buf;
+}
+}  // namespace
+
+void BoardModel::sendUart(uint8_t byte) {
+  if (!hasUartRx()) return;
+  uartRx_.send(byte, engine_.now());
+}
+
+void BoardModel::sendUartText(std::string_view text) {
+  for (const char c : text) sendUart(static_cast<uint8_t>(c));
 }
 
 bool BoardModel::readPin(const BoundSignal* bs) const {
@@ -29,12 +54,32 @@ bool BoardModel::readPin(const BoundSignal* bs) const {
 
 void BoardModel::tick(uint64_t cycles) {
   const uint64_t end = engine_.now() + cycles;
+  // Apply any UART RX edge scheduled for the current cycle before stepping
+  // (e.g. a sendUart() issued between ticks starts its start bit here).
+  applyUartRxEdges();
   while (engine_.now() < end) {
     const uint64_t nextGrid =
         (engine_.now() / kSampleChunkCycles + 1) * kSampleChunkCycles;
-    const uint64_t target = std::min(nextGrid, end);
+    const uint64_t target =
+        std::min({nextGrid, end, uartRx_.nextEdgeCycle()});
     engine_.step(target - engine_.now());
+    // Same-cycle order at a grid crossing: outputs first (sampled state),
+    // then input edges — matching the log's documented same-stamp tiebreak.
     if (engine_.now() == nextGrid) sampleAtGridCrossing();
+    applyUartRxEdges();
+  }
+}
+
+void BoardModel::applyUartRxEdges() {
+  // <= (not ==): if a caller advances the engine directly (bypassing tick, a
+  // misuse the engine's exposure permits), pending edges become overdue —
+  // apply them late-but-deterministically instead of letting the tick loop's
+  // min() target fall below now() and underflow into an infinite step().
+  while (uartRx_.nextEdgeCycle() <= engine_.now()) {
+    const UartRxDriver::Edge e = uartRx_.advance(engine_.now());
+    binding_.setPin(engine_, "UART_RX", e.level);
+    if (e.byteStart)
+      log_.event(engine_.now(), "UART RX " + byteRepr(e.byte));
   }
 }
 
@@ -76,6 +121,15 @@ void BoardModel::sampleAtGridCrossing() {
                           "->" + (on ? "1" : "0"));
       prevLed_[i] = on;
     }
+  }
+
+  if (uartTxPin_) {
+    const UartTxDecoder::Result r = uartTx_.sample(now, readPin(uartTxPin_));
+    if (r.byte) {
+      uartTxBytes_.push_back(*r.byte);
+      log_.event(now, "UART TX " + byteRepr(*r.byte));
+    }
+    if (r.framingError) log_.event(now, "UART TX framing error");
   }
 }
 

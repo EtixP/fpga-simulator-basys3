@@ -15,6 +15,7 @@
 #include "imgui_impl_sdl2.h"
 #include <SDL.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <fstream>
 #include <vector>
@@ -54,10 +55,12 @@ bool writeBmp(const std::string& path, const uint8_t* bgra, uint32_t w, uint32_t
   return out.good();
 }
 
-// Advance one frame of virtual time, applying scripted stimulus at exact
-// cycles by splitting the tick around each event. Total per frame is always
-// exactly cyclesPerFrame, so --frames determinism is untouched.
-void advanceFrame(BoardModel& board, const GuiOptions& opts, size_t& nextEvent) {
+// Advance one frame of virtual time, applying scripted stimulus and UART
+// sends at exact cycles by splitting the tick around each event. Total per
+// frame is always exactly cyclesPerFrame, so --frames determinism is
+// untouched.
+void advanceFrame(BoardModel& board, const GuiOptions& opts, size_t& nextEvent,
+                  size_t& nextSend) {
   const uint64_t frameEnd = board.now() + opts.cyclesPerFrame;
   while (true) {
     while (nextEvent < opts.stimulus.size() &&
@@ -65,10 +68,16 @@ void advanceFrame(BoardModel& board, const GuiOptions& opts, size_t& nextEvent) 
       applyStimulus(board, opts.stimulus[nextEvent]);
       ++nextEvent;
     }
+    while (nextSend < opts.sends.size() && opts.sends[nextSend].cycle <= board.now()) {
+      board.sendUartText(opts.sends[nextSend].text);
+      ++nextSend;
+    }
     if (board.now() >= frameEnd) break;
     uint64_t target = frameEnd;
     if (nextEvent < opts.stimulus.size() && opts.stimulus[nextEvent].cycle < frameEnd)
-      target = opts.stimulus[nextEvent].cycle;
+      target = std::min(target, opts.stimulus[nextEvent].cycle);
+    if (nextSend < opts.sends.size() && opts.sends[nextSend].cycle < frameEnd)
+      target = std::min(target, opts.sends[nextSend].cycle);
     board.tick(target - board.now());
   }
 }
@@ -114,6 +123,7 @@ int runBoardGui(BoardModel& board, const GuiOptions& opts) {
   bool artifactFailure = false;  // failed --screenshot/--log writes = nonzero exit
   long frame = 0;
   size_t nextEvent = 0;
+  size_t nextSend = 0;
   while (!done) {
     @autoreleasepool {
       // --frames 0 is a pure parse/launch smoke: exit before ticking.
@@ -136,7 +146,7 @@ int runBoardGui(BoardModel& board, const GuiOptions& opts) {
       // pool stalls, so --frames N always lands on N * cyclesPerFrame cycles.
       if (!drawable) continue;
 
-      advanceFrame(board, opts, nextEvent);
+      advanceFrame(board, opts, nextEvent, nextSend);
 
       id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
       renderPass.colorAttachments[0].clearColor = MTLClearColorMake(0.10, 0.11, 0.12, 1.0);
@@ -183,6 +193,10 @@ int runBoardGui(BoardModel& board, const GuiOptions& opts) {
     std::fprintf(stderr, "warning: %zu scripted --at event(s) beyond the run horizon "
                          "were never applied\n",
                  opts.stimulus.size() - nextEvent);
+  if (nextSend < opts.sends.size())
+    std::fprintf(stderr, "warning: %zu scripted --send event(s) beyond the run "
+                         "horizon were never applied\n",
+                 opts.sends.size() - nextSend);
 
   if (!opts.logPath.empty()) {
     std::ofstream out(opts.logPath, std::ios::binary);

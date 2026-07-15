@@ -27,6 +27,7 @@ add_library(vb_board STATIC
   board/BoardModel.cpp
   board/SevenSeg.cpp
   board/SimLog.cpp
+  board/Uart.cpp
 )
 target_link_libraries(vb_board PUBLIC vb_constraints)
 
@@ -76,4 +77,9 @@ if(VB_BUILD_GUI AND APPLE)
   target_compile_definitions(virtualbasys_stopwatch PRIVATE
     VB_DEFAULT_XDC="${CMAKE_SOURCE_DIR}/examples/stopwatch.xdc")
   target_link_libraries(virtualbasys_stopwatch PRIVATE vb_gui vb_engine sim_stopwatch)
+
+  add_executable(virtualbasys_uart_echo gui/main_uart_echo.cpp)
+  target_compile_definitions(virtualbasys_uart_echo PRIVATE
+    VB_DEFAULT_XDC="${CMAKE_SOURCE_DIR}/examples/uart_echo.xdc")
+  target_link_libraries(virtualbasys_uart_echo PRIVATE vb_gui vb_engine sim_uart_echo)
 endif()

@@ -1,11 +1,13 @@
 #pragma once
 #include "board/SevenSeg.h"
 #include "board/SimLog.h"
+#include "board/Uart.h"
 #include "constraints/PinBinding.h"
 #include "engine/SimEngine.h"
 
 #include <array>
 #include <cstdint>
+#include <string_view>
 
 namespace vb {
 
@@ -82,6 +84,17 @@ public:
   // tighter than the 20 ms decay window.
   uint64_t digitLastLit(uint32_t i) const;
 
+  // --- UART (8N1 @ 9600 baud; board resources UART_TX / UART_RX) -------------
+  // TX (design -> host): decoded on the observation grid, a SevenSeg-style
+  // sibling observer. RX (host -> design): exact-cycle bit edges — tick()
+  // splits stepping at each edge, so RX timing is input-precise, not
+  // grid-quantized.
+  bool hasUartTx() const { return uartTxPin_ != nullptr; }
+  bool hasUartRx() const { return uartRxPin_ != nullptr; }
+  const std::vector<uint8_t>& uartTxBytes() const { return uartTxBytes_; }
+  void sendUart(uint8_t byte);          // queues; ignored if UART_RX unbound
+  void sendUartText(std::string_view text);
+
   // --- structured log (R3) ---------------------------------------------------
   void setLogEnabled(bool on) { log_.setEnabled(on); }
   const std::vector<std::string>& structuredLog() const { return log_.lines(); }
@@ -92,12 +105,16 @@ public:
 
 private:
   void sampleAtGridCrossing();
+  void applyUartRxEdges();
   bool readPin(const BoundSignal* bs) const;
 
   SimEngine& engine_;
   PinBinding binding_;
   SevenSeg sevenSeg_;
   SimLog log_{kSampleChunkCycles};
+  UartTxDecoder uartTx_;
+  UartRxDriver uartRx_;
+  std::vector<uint8_t> uartTxBytes_;
 
   std::array<const BoundSignal*, kSwitchCount> switches_{};
   std::array<const BoundSignal*, kLedCount> leds_{};
@@ -105,6 +122,8 @@ private:
   std::array<const BoundSignal*, 7> segPins_{};   // SEG0..SEG6
   std::array<const BoundSignal*, 4> anPins_{};    // AN0..AN3
   const BoundSignal* dpPin_ = nullptr;
+  const BoundSignal* uartTxPin_ = nullptr;  // UART_TX: design output, observed
+  const BoundSignal* uartRxPin_ = nullptr;  // UART_RX: design input, driven
   bool displayBound_ = false;  // any anode bound
 
   std::array<bool, kSwitchCount> switchState_{};

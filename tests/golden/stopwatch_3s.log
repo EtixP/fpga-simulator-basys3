@@ -1,7 +1,8 @@
-# virtualbasys-log v=1 chunk_cycles=1000 grid=absolute
+# virtualbasys-log v=2 chunk_cycles=1000 grid=absolute
 # outputs: observed at grid crossings; "[cycle N] X a->b" = changed within the preceding chunk
 # inputs: exact-cycle, transition-only; a poke at cycle N is first sampled at edge N+1
-# order per crossing: SSEG[0..3] (content then .dp), LED ascending; SSEG content is character-level
+# order per crossing: SSEG[0..3] (content then .dp), LED ascending, UART TX; same-stamp inputs follow outputs; SSEG content is character-level
+# UART: TX bytes observed at the stop-bit grid crossing; RX bytes are exact-cycle input events stamped at the start-bit poke
 # this is an observation record, not an exhaustive event record: output activity shorter than one chunk is not visible
 [cycle 1000] SSEG[0] ' '->'0'
 [cycle 25000] SSEG[1] ' '->'0'

@@ -133,11 +133,34 @@ void drawButtonCross(BoardModel& board, ImVec2 origin) {
   }
 }
 
+void drawUartConsole(BoardModel& board) {
+  if (!board.hasUartTx() && !board.hasUartRx()) return;
+  ImGui::Separator();
+  ImGui::TextDisabled("UART (9600 8N1)");
+  std::string text;
+  for (const uint8_t b : board.uartTxBytes())
+    text += (b >= 0x20 && b < 0x7F) ? static_cast<char>(b) : '.';
+  ImGui::BeginChild("uart_out", ImVec2(0, 54.0f), ImGuiChildFlags_Borders);
+  ImGui::TextWrapped("%s", text.c_str());
+  ImGui::EndChild();
+  static char input[128] = "";
+  ImGui::SetNextItemWidth(300.0f);
+  const bool enter = ImGui::InputText("##uart_in", input, sizeof input,
+                                      ImGuiInputTextFlags_EnterReturnsTrue);
+  ImGui::SameLine();
+  ImGui::BeginDisabled(!board.hasUartRx());
+  if ((ImGui::Button("Send") || enter) && input[0] != '\0') {
+    board.sendUartText(input);
+    input[0] = '\0';
+  }
+  ImGui::EndDisabled();
+}
+
 }  // namespace
 
 void drawBoardWindow(BoardModel& board) {
   ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Once);
-  ImGui::SetNextWindowSize(ImVec2(kLeftPad * 2 + 16 * kCell + 20, 430), ImGuiCond_Once);
+  ImGui::SetNextWindowSize(ImVec2(kLeftPad * 2 + 16 * kCell + 20, 540), ImGuiCond_Once);
   ImGui::Begin("Basys 3", nullptr,
                ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize);
   const ImVec2 topLeft = ImGui::GetCursorPos();
@@ -148,6 +171,7 @@ void drawBoardWindow(BoardModel& board) {
   ImGui::Spacing();
   drawSwitchRow(board);
   ImGui::Spacing();
+  drawUartConsole(board);
   ImGui::Separator();
   ImGui::Text("cycle %llu", static_cast<unsigned long long>(board.now()));
   ImGui::End();
