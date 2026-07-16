@@ -158,9 +158,39 @@ void drawUartConsole(BoardModel& board) {
 
 }  // namespace
 
-void drawBoardWindow(BoardModel& board) {
+namespace {
+
+void drawVgaPanel(BoardModel& board, const VgaView& vga) {
+  if (!board.hasVga()) return;
+  ImGui::Separator();
+  ImGui::TextDisabled("VGA 640x480 @ 60 (frame-accurate)");
+  if (vga.textureId != 0) {
+    // Fit the 640x480 frame into a ~400px-wide monitor view.
+    const float scale = 400.0f / static_cast<float>(vga.width);
+    ImGui::Image(static_cast<ImTextureID>(vga.textureId),
+                 ImVec2(vga.width * scale, vga.height * scale));
+  } else {
+    ImGui::TextDisabled("(waiting for first frame...)");
+  }
+  if (board.vgaCompletedFrames() == 0) {
+    ImGui::TextDisabled("no complete frame yet");  // not the same as "healthy"
+  } else if (!board.vgaOk()) {
+    ImGui::TextColored(ImVec4(1, 0.4f, 0.3f, 1), "assembler: %s",
+                       board.vgaStatus().c_str());
+  }
+  // Honest R1 speed indicator: raw measured values for this frame, never
+  // smoothed — the banner must never oversell.
+  ImGui::Text("frame %llu | sim %.1f MHz (%.2fx real-time) | %.1f fps",
+              static_cast<unsigned long long>(vga.frameIndex), vga.simMHz,
+              vga.realtimeMultiplier, vga.fps);
+}
+
+}  // namespace
+
+void drawBoardWindow(BoardModel& board, const VgaView& vga) {
   ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Once);
-  ImGui::SetNextWindowSize(ImVec2(kLeftPad * 2 + 16 * kCell + 20, 540), ImGuiCond_Once);
+  const float height = board.hasVga() ? 620.0f : 540.0f;
+  ImGui::SetNextWindowSize(ImVec2(kLeftPad * 2 + 16 * kCell + 20, height), ImGuiCond_Once);
   ImGui::Begin("Basys 3", nullptr,
                ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize);
   const ImVec2 topLeft = ImGui::GetCursorPos();
@@ -172,6 +202,7 @@ void drawBoardWindow(BoardModel& board) {
   drawSwitchRow(board);
   ImGui::Spacing();
   drawUartConsole(board);
+  drawVgaPanel(board, vga);
   ImGui::Separator();
   ImGui::Text("cycle %llu", static_cast<unsigned long long>(board.now()));
   ImGui::End();

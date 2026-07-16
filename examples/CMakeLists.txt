@@ -28,3 +28,11 @@ verilate(sim_uart_echo
   OPT_FAST "-O2" OPT_GLOBAL "-O2"
   VERILATOR_ARGS --public-flat-rw --trace-vcd --timescale 1ns/1ns -Wall
 )
+
+add_library(sim_vga_pattern STATIC)
+verilate(sim_vga_pattern
+  SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/vga_pattern.v
+  TOP_MODULE vga_pattern
+  OPT_FAST "-O2" OPT_GLOBAL "-O2"
+  VERILATOR_ARGS --public-flat-rw --trace-vcd --timescale 1ns/1ns -Wall
+)

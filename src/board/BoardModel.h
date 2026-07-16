@@ -2,11 +2,14 @@
 #include "board/SevenSeg.h"
 #include "board/SimLog.h"
 #include "board/Uart.h"
+#include "board/Vga.h"
 #include "constraints/PinBinding.h"
 #include "engine/SimEngine.h"
 
 #include <array>
 #include <cstdint>
+#include <memory>
+#include <string>
 #include <string_view>
 
 namespace vb {
@@ -95,6 +98,21 @@ public:
   void sendUart(uint8_t byte);          // queues; ignored if UART_RX unbound
   void sendUartText(std::string_view text);
 
+  // --- VGA (640x480@60; board resources VGA_R/G/B0..3, VGA_HS, VGA_VS) -------
+  // Engine-side pixel tap: tick() captures the sync/color pins every cycle via
+  // SimEngine::stepCapture (the 1000-cycle grid is far too coarse for 4-cycle
+  // pixels) and feeds a VgaFrameAssembler monitor model. Bound only if all 16
+  // VGA resources resolve and their packed width fits 64 bits.
+  bool hasVga() const { return vga_ != nullptr; }
+  uint64_t vgaCompletedFrames() const;
+  // Index of the latest completed frame (completedFrames - 1); framebuffer()
+  // holds that frame as kWidth*kHeight*3 RGB888, row 0 = top.
+  const std::vector<uint8_t>& vgaFramebuffer() const;
+  uint64_t vgaLastFrameCycle() const;
+  uint32_t vgaCyclesPerPixel() const;
+  bool vgaOk() const;
+  const std::string& vgaStatus() const;
+
   // --- structured log (R3) ---------------------------------------------------
   void setLogEnabled(bool on) { log_.setEnabled(on); }
   const std::vector<std::string>& structuredLog() const { return log_.lines(); }
@@ -106,6 +124,7 @@ public:
 private:
   void sampleAtGridCrossing();
   void applyUartRxEdges();
+  void setupVga();  // resolve VGA pins -> lanes; leaves vga_ null if unbindable
   bool readPin(const BoundSignal* bs) const;
 
   SimEngine& engine_;
@@ -115,6 +134,10 @@ private:
   UartTxDecoder uartTx_;
   UartRxDriver uartRx_;
   std::vector<uint8_t> uartTxBytes_;
+
+  std::unique_ptr<VgaFrameAssembler> vga_;  // null unless all VGA pins bound
+  std::vector<SignalId> vgaIds_;            // distinct watched ids, first-seen order
+  std::vector<uint64_t> vgaBuf_;            // reused per-segment capture buffer
 
   std::array<const BoundSignal*, kSwitchCount> switches_{};
   std::array<const BoundSignal*, kLedCount> leds_{};

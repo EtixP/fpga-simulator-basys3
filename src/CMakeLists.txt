@@ -3,6 +3,7 @@
 # library the final executable links (verilate() compiles the runtime into
 # its target), so this library must always be linked BEFORE a sim_* library.
 add_library(vb_engine STATIC
+  engine/SimEngine.cpp
   engine/VerilatorEngine.cpp
 )
 target_include_directories(vb_engine PUBLIC
@@ -10,6 +11,12 @@ target_include_directories(vb_engine PUBLIC
   ${VERILATOR_ROOT}/include
   ${VERILATOR_ROOT}/include/vltstd
 )
+# The stepCapture tap runs once per simulated cycle (1.68M/frame for VGA), so
+# it is on the same hot path as the generated model and gets the same -O2 as
+# the sim_* libraries — regardless of the project build type, which is often
+# left empty (-O0). Without this the VGA demo runs ~2x slower than the
+# measured baseline. Correctness is build-type independent; only speed.
+target_compile_options(vb_engine PRIVATE -O2)
 
 # Constraints: XDC parsing + board table + pin binding. Engine-independent
 # (uses only the SimEngine.h interface header).
@@ -28,8 +35,12 @@ add_library(vb_board STATIC
   board/SevenSeg.cpp
   board/SimLog.cpp
   board/Uart.cpp
+  board/Vga.cpp
 )
 target_link_libraries(vb_board PUBLIC vb_constraints)
+# The VGA frame assembler consumes every captured cycle; -O2 for the same
+# hot-path reason as vb_engine (above).
+target_compile_options(vb_board PRIVATE -O2)
 
 # Scripted stimulus + demo CLI parsing: pure C++ (no SDL/ImGui), built
 # unconditionally so headless tests cover it even with VB_BUILD_GUI=OFF.
@@ -82,4 +93,9 @@ if(VB_BUILD_GUI AND APPLE)
   target_compile_definitions(virtualbasys_uart_echo PRIVATE
     VB_DEFAULT_XDC="${CMAKE_SOURCE_DIR}/examples/uart_echo.xdc")
   target_link_libraries(virtualbasys_uart_echo PRIVATE vb_gui vb_engine sim_uart_echo)
+
+  add_executable(virtualbasys_vga gui/main_vga.cpp)
+  target_compile_definitions(virtualbasys_vga PRIVATE
+    VB_DEFAULT_XDC="${CMAKE_SOURCE_DIR}/examples/vga_pattern.xdc")
+  target_link_libraries(virtualbasys_vga PRIVATE vb_gui vb_engine sim_vga_pattern)
 endif()

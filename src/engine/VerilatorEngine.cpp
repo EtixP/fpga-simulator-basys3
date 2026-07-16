@@ -205,23 +205,57 @@ void VerilatorEngine::poke(SignalId id, uint64_t v) {
   dirty_ = true;
 }
 
+// The single per-cycle time-advance path. step() and stepCapture() BOTH call
+// this so the two evals, both trace dumps, and both timeInc(5)s live in ONE
+// place — there is no second copy of the "advance 10 ns" logic that could
+// drift from this one (R1 single-time-counter invariant). Assumes the thread
+// context is already bound and clk is resolved by the caller.
+void VerilatorEngine::advanceCycle(const Entry& clk) {
+  // Low half-cycle first: pending pokes are applied in this eval, so they are
+  // stable before the rising edge samples them.
+  store(clk, 0);
+  model_.eval();
+  if (tracing_) vcd_->dump(ctx_->time());
+  ctx_->timeInc(5);
+
+  store(clk, 1);
+  model_.eval();
+  if (tracing_) vcd_->dump(ctx_->time());
+  ctx_->timeInc(5);
+
+  ++cycle_;
+}
+
 void VerilatorEngine::step(uint64_t cycles) {
   bindThreadContext();
   const Entry& clk = entryFor(clockId_);
+  for (uint64_t i = 0; i < cycles; ++i) advanceCycle(clk);
+  if (cycles > 0) dirty_ = false;
+}
+
+void VerilatorEngine::stepCapture(uint64_t cycles, const std::vector<SignalId>& ids,
+                                  uint64_t* out) {
+  // Resolve packed lanes once (cached datap pointers, no per-cycle SignalId
+  // dispatch) — the whole point of the tap. Validates the same way the
+  // shared default does: bad id or width sum > 64 throws before stepping.
+  std::vector<PackLane> lanes;
+  uint32_t offset = 0;
+  for (const SignalId id : ids) {
+    const Entry& e = entryFor(id);
+    if (offset + e.width > 64)
+      throw std::invalid_argument(
+          "stepCapture: packed width of the watch set exceeds 64 bits");
+    lanes.push_back(PackLane{&e, offset});
+    offset += e.width;
+  }
+
+  bindThreadContext();
+  const Entry& clk = entryFor(clockId_);
   for (uint64_t i = 0; i < cycles; ++i) {
-    // Low half-cycle first: pending pokes are applied in this eval, so they
-    // are stable before the rising edge samples them.
-    store(clk, 0);
-    model_.eval();
-    if (tracing_) vcd_->dump(ctx_->time());
-    ctx_->timeInc(5);
-
-    store(clk, 1);
-    model_.eval();
-    if (tracing_) vcd_->dump(ctx_->time());
-    ctx_->timeInc(5);
-
-    ++cycle_;
+    advanceCycle(clk);  // SAME path as step(): evals, dumps, timeInc, cycle_
+    uint64_t word = 0;
+    for (const PackLane& ln : lanes) word |= load(*ln.entry) << ln.offset;
+    out[i] = word;
   }
   if (cycles > 0) dirty_ = false;
 }

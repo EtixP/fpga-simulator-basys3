@@ -55,9 +55,41 @@ Conclusions: compiled-in trace support is FREE when not dumping (the earlier
 "costs some eval speed" note above is wrong for 5.050 — kept for history);
 `--public-flat-rw` costs ~28%; and the dominant limit is Verilator's per-eval
 overhead on tiny designs at two evals/cycle — even the bare ceiling is 0.3x
-real-time. Phase-2 levers, in order of value: single-eval-per-cycle stepping
-for posedge-only designs (~2x), then selective public metacomments (~1.4x).
-The speed indicator should not promise what the ceiling cannot deliver.
+real-time. The speed indicator should not promise what the ceiling cannot
+deliver.
+
+Note on the single-eval "~2x" lever (milestone 1.6): it was VERIFIED
+NON-VIABLE. A correct single-eval-per-cycle needs Verilator's clock to have
+been recorded low by a prior eval, so eliding the negedge eval breaks edge
+detection — measured directly: a posedge counter reads q=1 instead of q=1000
+under naive single-eval, and the trigger-prev variable is not in the public
+scope (poking it would be version-fragile internals-reaching). So milestone
+1.6 shipped the honest-banner posture (A), not a single-eval engine mode.
+Selective `public_flat_rw` metacomments (~1.4x) remain the one clean lever,
+but they help only OUR annotated demo RTL, not a user's standard VGA design —
+so they were NOT taken (a margin true for the screenshot and false for users
+is not a real margin). See the CLAUDE.md decision log.
+
+## VGA frame-rate baseline (milestone 1.6, measured 2026-07-16, M-series Mac)
+
+Measured through the exact BoardModel::tick VGA path (3 warmed runs):
+
+| path | Mcyc/s | VGA fps |
+|---|---|---|
+| raw step() ceiling (no pixel capture) | ~18 | ~10.8 |
+| engine.stepCapture (14-bit VGA watch set) | ~15.8 | ~9.4 |
+| full tick (grid+UART split + stepCapture + assembler) | ~15.0 | ~9.0 |
+| integrated GUI (with SDL/Metal present) | — | ~8.6 |
+
+The frame-producing path is stepCapture-bound at **~9 fps** — JUST UNDER R1's
+">= 10 simulated fps" VGA guide on this hardware. Per R1 that is a guide, not
+a promise: the demo renders frame-accurately and the honest speed banner
+shows the real per-frame fps and multiplier (never smoothed), so a run under
+load reads e.g. "8.6 fps — 0.15x real-time" truthfully. The milestone's
+Definition of Done — the pixel-exact headless golden — is framerate-
+independent and passes in ~0.8 s. The tap (vb_engine) and assembler
+(vb_board) carry -O2 like the sim_* libraries (the default build type is
+often empty/-O0); without it the demo runs ~2x slower.
 
 ## VCD viewer verification (R3 / milestone 1.4)
 

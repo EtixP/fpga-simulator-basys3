@@ -406,6 +406,72 @@ Added in milestone 1.5 (UART):
   GTKWave half of the 1.4 VCD criterion is closed (attestation recorded in
   docs/versions.md, 2026-07-15).
 
+Added in milestone 1.6 (VGA):
+
+- **The engine-side pixel tap: `SimEngine::stepCapture(cycles, ids, out)`.**
+  Advances N cycles, packing the watched signals' post-edge values (LSB-first
+  in id order, masked, sum <= 64 bits) into a uint64 per cycle — the 1000-
+  cycle grid is far too coarse for 4-cycle pixels. The DEFAULT impl
+  (SimEngine.cpp) is the step(1)+peek loop, so NetlistEngine inherits it and
+  the phase-3 R4 whole-frame diff needs nothing new. VerilatorEngine overrides
+  it for speed but MUST stay observably identical (test_engine_contract
+  compares override vs default byte-for-byte, tracing on and off, VCDs too).
+- **step() and stepCapture() share ONE time-advance path** (VerilatorEngine::
+  advanceCycle: two evals + two trace dumps + two timeInc(5) + cycle_). There
+  is no second copy of the "advance 10 ns" logic — the R1 single-time-counter
+  invariant holds by construction, not by keeping two copies in sync.
+- **uint64 sample word, not uint32** (measured free; 24-bit DVI + syncs would
+  bust 32, so the cap would force an ABI break — avoided).
+- **VgaFrameAssembler is a MONITOR MODEL** (src/board/Vga.*): it sees only
+  sync + color, never the design's clocks. cyclesPerPixel is MEASURED from the
+  hsync period / 800 (never assumed /4 — R1 derived clock); sync polarity is
+  MEASURED by duty cycle (active-low is ~12% low; active-HIGH is flagged, not
+  rendered shifted — the VGA analog of the seven-seg active-low fact). RGB is
+  sampled at reconstructed pixel centers (hsyncFall + 144*cpp + m*cpp + cpp/2;
+  offsets are sync+backporch = 144 px / 35 lines from the FALLING edge, NOT
+  backporch alone). Frames delimited by successive Vsync falling edges; frame
+  1 = 2nd completed period, completes at cycle 4,928,013 in the golden (=
+  4,928,000 pure-counting + 10 reset + 4 CE_DIV - 1 stepCapture label).
+  Status is PER-FRAME (not sticky) so a startup transient clears once a clean
+  frame follows, like a real monitor re-syncing.
+- **The golden is a PROCEDURAL expected image** (no committed binary), with an
+  independent hand-anchored yellow pixel (R=FF,G=FF,B=00 pins channels/catches
+  R<->B swap) and top/bottom border anchors (white/blue pins vertical
+  orientation) asserted DIRECTLY on the assembler output — plus negative
+  regressions proving those checks bite on injected swap/flip. The pattern is
+  vertically ASYMMETRIC (vertical bars alone are flip-invariant) — the same
+  instinct as 1.5's non-palindromic UART byte.
+- **The tap (vb_engine) and assembler (vb_board) carry -O2** like sim_* — the
+  per-cycle hot path, independent of the (often empty/-O0) project build type.
+- **VGA is OMITTED from the structured log** in 1.6: a frame-completion line
+  is an exact-cycle output event that contradicts the frozen v=2 header;
+  adding it later is a v=3 bump, and it buys nothing (the frame BMP is the
+  artifact, and the frame-1 cycle is asserted directly).
+
+- **D1 ruling — the honest-banner posture (A).** The single-eval-per-cycle
+  "~16 fps" lever was VERIFIED non-viable (breaks Verilator edge detection;
+  correct form needs fragile internals-poking — see docs/versions.md). Ruling:
+  full --public-flat-rw, honest live speed banner, ~9-10 fps. Framing (user's
+  words, kept as the accurate record): "the honest speed indicator at
+  frame-accurate pacing is the specified behavior; the >=10 guide is met at
+  baseline and the banner tells the truth under load" — NOT "we couldn't hit
+  16 so we settled for 10". The banner shows RAW measured per-frame fps and
+  multiplier, never smoothed/rolling-max/best-case (that would make it the
+  dishonest instrument B' would have been). The milestone DoD (pixel-exact
+  headless golden) is framerate-independent.
+- **B' (selective public_flat_rw) is SHELVED, not shipped.** It raises the
+  shipped demo to ~11.5 fps but helps the demo screenshot ONLY, not user
+  designs (which can't carry the metacomments) — a margin real for the
+  screenshot and fictional for users is a demo trick, disqualifying for the
+  honesty standard. On the shelf as the blessed phase-2 lever if a specific
+  recorded demo ever needs cushion, with its limitation stated; not a default.
+- **Per-demo GUI executable virtualbasys_vga**; the VGA demo sets
+  cyclesPerFrame = 1'700'000 (~1 VGA frame per rendered GUI frame). The GUI
+  MTLTexture is owned in GuiApp.mm and uploaded only on frame-index advance;
+  drawBoardWindow takes an opaque VgaView so BoardWindow.cpp stays ObjC-free.
+  DemoMain applies an R6 btnC startup reset (power-on sync zero-init is the
+  ASSERTED level; without a reset the monitor sees a spurious first edge).
+
 ## Explicit non-goals
 
 - No synthesis tool of our own (Yosys handles it).

@@ -8,6 +8,7 @@
 #include "gui/GuiApp.h"
 
 #include "board/BoardModel.h"
+#include "board/Vga.h"
 #include "gui/BoardWindow.h"
 
 #include "imgui.h"
@@ -16,6 +17,7 @@
 #include <SDL.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <fstream>
 #include <vector>
@@ -92,7 +94,10 @@ int runBoardGui(BoardModel& board, const GuiOptions& opts) {
     return 1;
   }
   SDL_SetHint(SDL_HINT_RENDER_DRIVER, "metal");
-  SDL_Window* window = SDL_CreateWindow(opts.windowTitle.c_str(), 100, 100, 820, 470,
+  // Taller when the design drives VGA so the frame panel + honest speed banner
+  // fit without clipping.
+  const int winH = board.hasVga() ? 730 : 490;
+  SDL_Window* window = SDL_CreateWindow(opts.windowTitle.c_str(), 100, 100, 820, winH,
                                         SDL_WINDOW_ALLOW_HIGHDPI);
   if (!window) {
     std::fprintf(stderr, "error: SDL_CreateWindow: %s\n", SDL_GetError());
@@ -119,11 +124,19 @@ int runBoardGui(BoardModel& board, const GuiOptions& opts) {
   id<MTLCommandQueue> commandQueue = [layer.device newCommandQueue];
   MTLRenderPassDescriptor* renderPass = [MTLRenderPassDescriptor new];
 
+  // Persistent VGA texture (created lazily on the first completed frame; ARC
+  // strong reference held for the whole loop). Uploaded ONLY when the frame
+  // index advances (frame-accurate, R1).
+  id<MTLTexture> vgaTex = nil;
+  uint64_t lastUploadedVgaFrame = ~0ull;
+  std::vector<uint8_t> bgra;  // reused RGB888 -> BGRA staging
+
   bool done = false;
   bool artifactFailure = false;  // failed --screenshot/--log writes = nonzero exit
   long frame = 0;
   size_t nextEvent = 0;
   size_t nextSend = 0;
+  auto lastFrameTime = std::chrono::steady_clock::now();
   while (!done) {
     @autoreleasepool {
       // --frames 0 is a pure parse/launch smoke: exit before ticking.
@@ -148,6 +161,50 @@ int runBoardGui(BoardModel& board, const GuiOptions& opts) {
 
       advanceFrame(board, opts, nextEvent, nextSend);
 
+      // Honest per-frame speed readout: raw measured dt, never smoothed.
+      const auto nowT = std::chrono::steady_clock::now();
+      const double dt = std::chrono::duration<double>(nowT - lastFrameTime).count();
+      lastFrameTime = nowT;
+      VgaView vgaView;
+      if (board.hasVga() && board.vgaCompletedFrames() > 0) {
+        const uint64_t idx = board.vgaCompletedFrames() - 1;
+        if (idx != lastUploadedVgaFrame) {  // upload only on frame advance
+          if (!vgaTex) {
+            MTLTextureDescriptor* d = [MTLTextureDescriptor
+                texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+                                             width:VgaFrameAssembler::kWidth
+                                            height:VgaFrameAssembler::kHeight
+                                         mipmapped:NO];
+            d.usage = MTLTextureUsageShaderRead;
+            vgaTex = [layer.device newTextureWithDescriptor:d];
+          }
+          const auto& rgb = board.vgaFramebuffer();
+          bgra.resize(rgb.size() / 3 * 4);
+          for (size_t p = 0, q = 0; p + 2 < rgb.size(); p += 3, q += 4) {
+            bgra[q + 0] = rgb[p + 2];  // B
+            bgra[q + 1] = rgb[p + 1];  // G
+            bgra[q + 2] = rgb[p + 0];  // R
+            bgra[q + 3] = 0xFF;        // A
+          }
+          [vgaTex replaceRegion:MTLRegionMake2D(0, 0, VgaFrameAssembler::kWidth,
+                                                VgaFrameAssembler::kHeight)
+                    mipmapLevel:0
+                      withBytes:bgra.data()
+                    bytesPerRow:VgaFrameAssembler::kWidth * 4];
+          lastUploadedVgaFrame = idx;
+        }
+        vgaView.textureId = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(
+            (__bridge void*)vgaTex));
+        vgaView.width = VgaFrameAssembler::kWidth;
+        vgaView.height = VgaFrameAssembler::kHeight;
+        vgaView.frameIndex = idx;
+      }
+      if (dt > 0.0) {
+        vgaView.simMHz = opts.cyclesPerFrame / dt / 1e6;
+        vgaView.realtimeMultiplier = (opts.cyclesPerFrame / dt) / 100e6;
+        vgaView.fps = 1.0 / dt;
+      }
+
       id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
       renderPass.colorAttachments[0].clearColor = MTLClearColorMake(0.10, 0.11, 0.12, 1.0);
       renderPass.colorAttachments[0].texture = drawable.texture;
@@ -159,7 +216,7 @@ int runBoardGui(BoardModel& board, const GuiOptions& opts) {
       ImGui_ImplMetal_NewFrame(renderPass);
       ImGui_ImplSDL2_NewFrame();
       ImGui::NewFrame();
-      drawBoardWindow(board);
+      drawBoardWindow(board, vgaView);
       ImGui::Render();
       ImGui_ImplMetal_RenderDrawData(ImGui::GetDrawData(), commandBuffer, encoder);
 

@@ -76,6 +76,38 @@ public:
   virtual void poke(SignalId id, uint64_t v) = 0;
   virtual uint64_t now() const = 0;
 
+  // --- bulk observation tap (milestone 1.6) ------------------------------
+  // Advance `cycles` rising edges, packing the watched signals' settled
+  // post-edge values once per cycle into out[i]: for cycle i, out[i] holds
+  // each id's value masked to its info().width, laid LSB-first in id order
+  // (id[0] at bit 0, id[1] above it, ...). The sum of widths must be <= 64.
+  //
+  // Semantics are EXACTLY { step(1); (pack peeks); } x cycles — SAME time
+  // advance, SAME VCD dumps, SAME now(); it is a parallel observation
+  // channel, not a step replacement. This is the fast path for pixel-rate
+  // sampling (VGA: ~1.68M cycles/frame) that per-cycle peek()-through-SignalId
+  // dispatch cannot afford. The DEFAULT implementation below IS the
+  // step(1)+peek loop, so every engine — including the phase-3 NetlistEngine
+  // — satisfies the contract unchanged; an engine overrides ONLY as an
+  // optimization and must stay observably identical to the default (verified
+  // in test_engine_contract, tracing on and off).
+  //
+  // Throws std::invalid_argument if any id is invalid or the width sum
+  // exceeds 64 (the exception TYPE is guaranteed identical between the default
+  // and any override; the message may differ on doubly-malformed input).
+  // cycles == 0 is a no-op (out untouched). `out` must have room for `cycles`
+  // entries.
+  virtual void stepCapture(uint64_t cycles, const std::vector<SignalId>& ids,
+                           uint64_t* out);
+
+  // Pack the current settled values of `ids` into one word (LSB-first in id
+  // order, each masked to width). This defines the canonical layout; the
+  // default stepCapture calls it, and an override must produce a BIT-IDENTICAL
+  // word (VerilatorEngine's does, via cached pointers for speed rather than
+  // calling this — verified in test_engine_contract). Throws
+  // std::invalid_argument if the width sum exceeds 64.
+  uint64_t packSample(const std::vector<SignalId>& ids);
+
   // --- waveform tracing ---------------------------------------------------
   // setTraceFile: set the waveform (VCD) output path. Must be called before
   //       tracing first starts (throws std::logic_error afterwards — the

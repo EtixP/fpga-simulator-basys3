@@ -85,6 +85,8 @@ public:
   uint64_t peek(SignalId id) override;
   void poke(SignalId id, uint64_t v) override;
   uint64_t now() const override;
+  void stepCapture(uint64_t cycles, const std::vector<SignalId>& ids,
+                   uint64_t* out) override;
 
   void setTraceFile(std::string_view path) override;
   void trace(bool enable) override;
@@ -99,7 +101,17 @@ private:
     std::string name;
   };
 
+  // A resolved packing lane for stepCapture: a cached Entry pointer and its
+  // LSB offset in the packed word (no per-cycle SignalId dispatch).
+  struct PackLane {
+    const Entry* entry;
+    uint32_t offset;
+  };
+
   const Entry& entryFor(SignalId id) const;  // throws std::invalid_argument
+  // The single per-cycle advance path shared by step() and stepCapture()
+  // (see the .cpp): two evals + two trace dumps + two timeInc(5) + cycle_.
+  void advanceCycle(const Entry& clk);
   // Point Verilator's thread-context at THIS engine's context. Required
   // before every eval and before teardown: parts of the runtime (scope
   // unregistration in ~VerilatedScope, $finish/$display plumbing) resolve

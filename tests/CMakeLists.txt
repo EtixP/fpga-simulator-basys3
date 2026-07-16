@@ -79,6 +79,15 @@ add_test(NAME stopwatch_vcd_surfer COMMAND test_stopwatch_vcd surfer
 set_tests_properties(stopwatch_vcd_surfer PROPERTIES
   DEPENDS stopwatch_vcd_structural SKIP_RETURN_CODE 77 TIMEOUT 120)
 
+# --- milestone 1.6 acceptance: vga_pattern pixel-exact frame-1 dump ---------
+add_executable(test_vga_pattern test_vga_pattern.cpp)
+target_link_libraries(test_vga_pattern PRIVATE vb_board vb_engine sim_vga_pattern)
+add_test(NAME vga_pattern COMMAND test_vga_pattern
+  "${CMAKE_SOURCE_DIR}/examples/vga_pattern.xdc"
+  "${CMAKE_CURRENT_BINARY_DIR}/vga_pattern_frame1.bmp"
+)
+set_tests_properties(vga_pattern PROPERTIES TIMEOUT 60)
+
 # --- inout ports are contractually unsupported (own design + executable) ---
 # Fixture, not a shipped example, so no -Wall (R5 defers tri-state).
 add_library(sim_ioport STATIC)

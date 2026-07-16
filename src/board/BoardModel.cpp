@@ -28,6 +28,68 @@ BoardModel::BoardModel(SimEngine& engine, PinBinding binding)
   // engine settles t=0 with all inputs low before this poke lands.)
   if (uartRxPin_) binding_.setPin(engine_, "UART_RX", true);
   for (uint32_t i = 0; i < kDigitCount; ++i) prevDigitChar_[i] = ' ';
+  setupVga();
+}
+
+void BoardModel::setupVga() {
+  // Canonical resource order; the packed word lays out distinct SignalIds in
+  // first-seen order, each masked to its port width. Binding is pin-keyed, so
+  // a color channel's four bits may live in one bus, four scalars, or bits of
+  // a shared port — we locate each bit by (its port's packed offset + its
+  // BoundSignal.bit), never assuming a port shape.
+  struct Res { const char* name; uint32_t* lane; };
+  VgaFrameAssembler::Lanes lanes;
+  const Res order[] = {
+      {"VGA_R0", &lanes.red[0]},   {"VGA_R1", &lanes.red[1]},
+      {"VGA_R2", &lanes.red[2]},   {"VGA_R3", &lanes.red[3]},
+      {"VGA_G0", &lanes.green[0]}, {"VGA_G1", &lanes.green[1]},
+      {"VGA_G2", &lanes.green[2]}, {"VGA_G3", &lanes.green[3]},
+      {"VGA_B0", &lanes.blue[0]},  {"VGA_B1", &lanes.blue[1]},
+      {"VGA_B2", &lanes.blue[2]},  {"VGA_B3", &lanes.blue[3]},
+      {"VGA_HS", &lanes.hsync},    {"VGA_VS", &lanes.vsync},
+  };
+  std::vector<SignalId> ids;
+  std::vector<uint32_t> offsets;  // packed offset per distinct id (parallel to ids)
+  uint32_t total = 0;
+  for (const Res& r : order) {
+    const BoundSignal* bs = binding_.find(r.name);
+    if (!bs) return;  // any VGA pin missing -> no VGA on this board
+    // Locate (or add) this port's distinct id and its packed base offset.
+    uint32_t base = 0;
+    bool found = false;
+    for (size_t k = 0; k < ids.size(); ++k)
+      if (ids[k] == bs->id) { base = offsets[k]; found = true; break; }
+    if (!found) {
+      if (total + bs->portWidth > 64) return;  // width sum busts the pack word
+      base = total;
+      ids.push_back(bs->id);
+      offsets.push_back(total);
+      total += bs->portWidth;
+    }
+    *r.lane = base + bs->bit;
+  }
+  vgaIds_ = std::move(ids);
+  vgaBuf_.assign(kSampleChunkCycles, 0);
+  vga_ = std::make_unique<VgaFrameAssembler>(lanes);
+}
+
+uint64_t BoardModel::vgaCompletedFrames() const {
+  return vga_ ? vga_->completedFrames() : 0;
+}
+const std::vector<uint8_t>& BoardModel::vgaFramebuffer() const {
+  static const std::vector<uint8_t> empty;
+  return vga_ ? vga_->framebuffer() : empty;
+}
+uint64_t BoardModel::vgaLastFrameCycle() const {
+  return vga_ ? vga_->lastFrameCycle() : 0;
+}
+uint32_t BoardModel::vgaCyclesPerPixel() const {
+  return vga_ ? vga_->measuredCyclesPerPixel() : 0;
+}
+bool BoardModel::vgaOk() const { return vga_ ? vga_->ok() : true; }
+const std::string& BoardModel::vgaStatus() const {
+  static const std::string none;
+  return vga_ ? vga_->status() : none;
 }
 
 namespace {
@@ -62,7 +124,17 @@ void BoardModel::tick(uint64_t cycles) {
         (engine_.now() / kSampleChunkCycles + 1) * kSampleChunkCycles;
     const uint64_t target =
         std::min({nextGrid, end, uartRx_.nextEdgeCycle()});
-    engine_.step(target - engine_.now());
+    const uint64_t segStart = engine_.now();
+    const uint64_t seg = target - segStart;
+    if (vga_) {
+      // Pixel-rate tap: capture the sync/color pins every cycle of this
+      // (<= 1000-cycle) segment and feed the monitor model. Same time
+      // advance as step() — grid/UART observers below are unaffected.
+      engine_.stepCapture(seg, vgaIds_, vgaBuf_.data());
+      vga_->consume(segStart, vgaBuf_.data(), static_cast<uint32_t>(seg));
+    } else {
+      engine_.step(seg);
+    }
     // Same-cycle order at a grid crossing: outputs first (sampled state),
     // then input edges — matching the log's documented same-stamp tiebreak.
     if (engine_.now() == nextGrid) sampleAtGridCrossing();

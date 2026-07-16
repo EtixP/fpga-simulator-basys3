@@ -17,6 +17,7 @@ using vb::kNoSignal;
 using vb::makeVerilatorEngine;
 using vb::SignalId;
 using vb::SignalInfo;
+using vb::SimEngine;
 using vb::VerilatorEngineOptions;
 
 static std::string readFile(const std::string& path) {
@@ -25,6 +26,69 @@ static std::string readFile(const std::string& path) {
   std::ostringstream ss;
   ss << in.rdbuf();
   return ss.str();
+}
+
+// The stepCapture override must be observably IDENTICAL to the shared default
+// (step(1)+peek loop) — same captured bytes, same now(), same VCD — or the
+// phase-3 R4 frame diff is unsound. Also pins the edge cases in the contract.
+static void checkStepCapture(const std::string& vcdA, const std::string& vcdB) {
+  auto ea = makeVerilatorEngine<Vcounter>({.topModule = "counter"});
+  auto eb = makeVerilatorEngine<Vcounter>({.topModule = "counter"});
+  const std::vector<SignalId> ids{ea->lookup("led"), ea->lookup("sw")};  // 16+4 bits
+  const std::vector<SignalId> idsB{eb->lookup("led"), eb->lookup("sw")};
+  for (SimEngine* e : {static_cast<SimEngine*>(ea.get()), static_cast<SimEngine*>(eb.get())}) {
+    e->poke(e->lookup("btnC"), 1);
+    e->step(2);
+    e->poke(e->lookup("btnC"), 0);
+    e->poke(e->lookup("sw"), 3);
+  }
+  std::vector<uint64_t> bufA(50), bufB(50);
+  ea->stepCapture(50, ids, bufA.data());               // override
+  eb->SimEngine::stepCapture(50, idsB, bufB.data());   // qualified base = default
+  CHECK(bufA == bufB);
+  CHECK_EQ(ea->now(), eb->now());
+  // Packed layout: led at bits 0..15, sw at 16..19; count += 3 per edge.
+  CHECK_EQ(bufA[0] & 0xFFFF, 3);
+  CHECK_EQ((bufA[0] >> 16) & 0xF, 3);
+  CHECK_EQ(bufA[49] & 0xFFFF, 150);
+
+  // Interleaved poke mid-sequence: still identical.
+  ea->poke(ea->lookup("sw"), 7);
+  eb->poke(eb->lookup("sw"), 7);
+  ea->stepCapture(20, ids, bufA.data());
+  eb->SimEngine::stepCapture(20, idsB, bufB.data());
+  CHECK(bufA == bufB);
+
+  // Tracing ON: the override's VCD must byte-match the default's.
+  auto ta = makeVerilatorEngine<Vcounter>({.topModule = "counter"});
+  auto tb = makeVerilatorEngine<Vcounter>({.topModule = "counter"});
+  ta->setTraceFile(vcdA);
+  tb->setTraceFile(vcdB);
+  ta->trace(true);
+  tb->trace(true);
+  ta->poke(ta->lookup("sw"), 5);
+  tb->poke(tb->lookup("sw"), 5);
+  std::vector<uint64_t> t1(30), t2(30);
+  const std::vector<SignalId> tia{ta->lookup("led")};
+  const std::vector<SignalId> tib{tb->lookup("led")};
+  ta->stepCapture(30, tia, t1.data());
+  tb->SimEngine::stepCapture(30, tib, t2.data());
+  CHECK(t1 == t2);
+  ta.reset();
+  tb.reset();  // close both VCDs
+  CHECK(readFile(vcdA) == readFile(vcdB));
+
+  // Edge cases.
+  auto e = makeVerilatorEngine<Vcounter>({.topModule = "counter"});
+  std::vector<uint64_t> one(1, 0xDEADull);
+  e->stepCapture(0, {e->lookup("led")}, one.data());  // no-op
+  CHECK_EQ(one[0], 0xDEADull);
+  CHECK_EQ(e->now(), 0);
+  const SignalId led = e->lookup("led");
+  CHECK_THROWS(e->stepCapture(1, {led, led, led, led, led}, one.data()),  // 80 bits
+               std::invalid_argument);
+  CHECK_THROWS(e->stepCapture(1, {kNoSignal}, one.data()), std::invalid_argument);
+  CHECK_EQ(e->now(), 0);  // a rejected capture advanced no time
 }
 
 static void checkConstructionErrors() {
@@ -38,6 +102,7 @@ static void checkConstructionErrors() {
 int main(int argc, char** argv) {
   CHECK(argc >= 2);
   checkConstructionErrors();
+  checkStepCapture(std::string(argv[1]) + ".capA", std::string(argv[1]) + ".capB");
 
   auto engine = makeVerilatorEngine<Vcounter>({.topModule = "counter"});
 
