@@ -69,10 +69,12 @@ StimulusParse parseStimulus(const std::vector<std::string>& specs) {
 
 bool applyStimulus(BoardModel& board, const StimulusEvent& e) {
   if (const auto sw = switchIndex(e.name)) {
+    if (!board.hasSwitch(*sw)) return false;
     board.setSwitch(*sw, e.value);
     return true;
   }
   if (const auto b = buttonId(e.name)) {
+    if (!board.hasButton(*b)) return false;
     board.setButton(*b, e.value);
     return true;
   }

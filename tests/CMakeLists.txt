@@ -147,3 +147,7 @@ add_test(NAME uart_stream COMMAND test_uart_stream)
 add_executable(test_vga_contract test_vga_contract.cpp)
 target_link_libraries(test_vga_contract PRIVATE vb_board)
 add_test(NAME vga_contract COMMAND test_vga_contract)
+
+add_executable(test_gui_runner test_gui_runner.cpp)
+target_link_libraries(test_gui_runner PRIVATE vb_stimulus vb_engine)
+add_test(NAME gui_runner COMMAND test_gui_runner)

@@ -44,7 +44,7 @@ target_compile_options(vb_board PRIVATE -O2)
 
 # Scripted stimulus + demo CLI parsing: pure C++ (no SDL/ImGui), built
 # unconditionally so headless tests cover it even with VB_BUILD_GUI=OFF.
-add_library(vb_stimulus STATIC gui/Stimulus.cpp gui/DemoCli.cpp)
+add_library(vb_stimulus STATIC gui/Stimulus.cpp gui/DemoCli.cpp gui/GuiRunner.cpp)
 target_link_libraries(vb_stimulus PUBLIC vb_board)
 
 # --- GUI: Dear ImGui (submodule @ v1.92.8) + SDL2 + Metal -------------------

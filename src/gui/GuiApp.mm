@@ -10,13 +10,13 @@
 #include "board/BoardModel.h"
 #include "board/Vga.h"
 #include "gui/BoardWindow.h"
+#include "gui/GuiRunner.h"
 
 #include "imgui.h"
 #include "imgui_impl_metal.h"
 #include "imgui_impl_sdl2.h"
 #include <SDL.h>
 
-#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <fstream>
@@ -57,37 +57,11 @@ bool writeBmp(const std::string& path, const uint8_t* bgra, uint32_t w, uint32_t
   return out.good();
 }
 
-// Advance one frame of virtual time, applying scripted stimulus and UART
-// sends at exact cycles by splitting the tick around each event. Total per
-// frame is always exactly cyclesPerFrame, so --frames determinism is
-// untouched.
-void advanceFrame(BoardModel& board, const GuiOptions& opts, size_t& nextEvent,
-                  size_t& nextSend) {
-  const uint64_t frameEnd = board.now() + opts.cyclesPerFrame;
-  while (true) {
-    while (nextEvent < opts.stimulus.size() &&
-           opts.stimulus[nextEvent].cycle <= board.now()) {
-      applyStimulus(board, opts.stimulus[nextEvent]);
-      ++nextEvent;
-    }
-    while (nextSend < opts.sends.size() && opts.sends[nextSend].cycle <= board.now()) {
-      board.sendUartText(opts.sends[nextSend].text);
-      ++nextSend;
-    }
-    if (board.now() >= frameEnd) break;
-    uint64_t target = frameEnd;
-    if (nextEvent < opts.stimulus.size() && opts.stimulus[nextEvent].cycle < frameEnd)
-      target = std::min(target, opts.stimulus[nextEvent].cycle);
-    if (nextSend < opts.sends.size() && opts.sends[nextSend].cycle < frameEnd)
-      target = std::min(target, opts.sends[nextSend].cycle);
-    board.tick(target - board.now());
-  }
-}
-
 }  // namespace
 
 int runBoardGui(BoardModel& board, const GuiOptions& opts) {
-  if (!opts.logPath.empty()) board.setLogEnabled(true);
+  ScriptCursor script;
+  initializeDemoRun(board, opts, script);
 
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
     std::fprintf(stderr, "error: SDL_Init: %s\n", SDL_GetError());
@@ -134,8 +108,6 @@ int runBoardGui(BoardModel& board, const GuiOptions& opts) {
   bool done = false;
   bool artifactFailure = false;  // failed --screenshot/--log writes = nonzero exit
   long frame = 0;
-  size_t nextEvent = 0;
-  size_t nextSend = 0;
   auto lastFrameTime = std::chrono::steady_clock::now();
   while (!done) {
     @autoreleasepool {
@@ -156,10 +128,10 @@ int runBoardGui(BoardModel& board, const GuiOptions& opts) {
       id<CAMetalDrawable> drawable = [layer nextDrawable];
       // Tick only when this iteration will actually render: one counted
       // frame == exactly cyclesPerFrame of virtual time even if the drawable
-      // pool stalls, so --frames N always lands on N * cyclesPerFrame cycles.
+      // pool stalls. Startup contributes a separate 16 cycles to positive runs.
       if (!drawable) continue;
 
-      advanceFrame(board, opts, nextEvent, nextSend);
+      advanceScripted(board, opts, script, opts.cyclesPerFrame);
 
       // Honest per-frame speed readout: raw measured dt, never smoothed.
       const auto nowT = std::chrono::steady_clock::now();
@@ -246,14 +218,14 @@ int runBoardGui(BoardModel& board, const GuiOptions& opts) {
     }
   }
 
-  if (nextEvent < opts.stimulus.size())
+  if (script.event < opts.stimulus.size())
     std::fprintf(stderr, "warning: %zu scripted --at event(s) beyond the run horizon "
                          "were never applied\n",
-                 opts.stimulus.size() - nextEvent);
-  if (nextSend < opts.sends.size())
+                 opts.stimulus.size() - script.event);
+  if (script.send < opts.sends.size())
     std::fprintf(stderr, "warning: %zu scripted --send event(s) beyond the run "
                          "horizon were never applied\n",
-                 opts.sends.size() - nextSend);
+                 opts.sends.size() - script.send);
 
   if (!opts.logPath.empty()) {
     std::ofstream out(opts.logPath, std::ios::binary);
