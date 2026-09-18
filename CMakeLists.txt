@@ -15,3 +15,8 @@ enable_testing()
 add_subdirectory(examples)  # verilated design libraries (sim_*)
 add_subdirectory(src)       # engine, constraints, board, gui
 add_subdirectory(tests)
+
+option(VB_BUILD_BENCHMARKS "Build headless pre-migration performance benchmarks" OFF)
+if(VB_BUILD_BENCHMARKS)
+  add_subdirectory(bench)
+endif()
