@@ -158,6 +158,26 @@ int main(int argc, char** argv) {
             flipped[topMid + 2] == 0xFF));
   }
 
+  // Actual Verilator + BoardModel partition invariance, not only a monitor
+  // fed already captured samples. Coprime tick boundaries must preserve
+  // post-edge capture, completed-frame index/stamp and the entire image.
+  auto splitEngine = makeVerilatorEngine<Vvga_pattern>({.topModule = "vga_pattern"});
+  BoardModel split(*splitEngine, PinBinding::bind(xdc, *splitEngine));
+  split.setButton(Button::C, true);
+  split.tick(3);
+  split.tick(7);
+  split.setButton(Button::C, false);
+  const uint64_t chunks[] = {1, 997, 3201, 19, 65537};
+  size_t part = 0;
+  while (split.now() < board.now())
+    split.tick(std::min(chunks[part++ % 5], board.now() - split.now()));
+  CHECK_EQ(split.now(), board.now());
+  CHECK_EQ(split.vgaCompletedFrames(), board.vgaCompletedFrames());
+  CHECK_EQ(split.vgaLastFrameCycle(), board.vgaLastFrameCycle());
+  CHECK_EQ(split.vgaCyclesPerPixel(), board.vgaCyclesPerPixel());
+  CHECK(split.vgaStatus() == board.vgaStatus());
+  CHECK(split.vgaFramebuffer() == got);
+
   std::puts("test_vga_pattern: PASS");
   return 0;
 }

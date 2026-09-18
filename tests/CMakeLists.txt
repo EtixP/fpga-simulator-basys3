@@ -143,3 +143,7 @@ verilate(sim_uart_echo_fast
 add_executable(test_uart_stream test_uart_stream.cpp)
 target_link_libraries(test_uart_stream PRIVATE vb_board vb_engine sim_uart_echo_fast)
 add_test(NAME uart_stream COMMAND test_uart_stream)
+
+add_executable(test_vga_contract test_vga_contract.cpp)
+target_link_libraries(test_vga_contract PRIVATE vb_board)
+add_test(NAME vga_contract COMMAND test_vga_contract)

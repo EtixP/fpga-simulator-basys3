@@ -88,7 +88,8 @@ private:
 
   uint64_t vsyncFallCycle_ = 0;
   bool haveVsyncFall_ = false;       // a period has started
-  uint32_t lineCounter_ = 0;         // hsync falls since the vsync fall
+  uint64_t vsyncLowCycles_ = 0;
+  bool haveVsyncLow_ = false;
   uint32_t hsyncFallsThisPeriod_ = 0;
 
   // Current visible row being filled (if any).

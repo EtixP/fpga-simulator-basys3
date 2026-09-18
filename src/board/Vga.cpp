@@ -33,6 +33,10 @@ void VgaFrameAssembler::consume(uint64_t startCycle, const uint64_t* samples,
       hsyncLowCycles_ = cycle - prevHsyncFall_;
       haveHsyncLow_ = true;
     }
+    if (!prevVsync_ && vs && haveVsyncFall_) {
+      vsyncLowCycles_ = cycle - vsyncFallCycle_;
+      haveVsyncLow_ = true;
+    }
 
     // Sample the visible pixels of the current row at their reconstructed
     // centers. >= + while is robust to any cpp; samples are contiguous so it
@@ -84,20 +88,25 @@ void VgaFrameAssembler::onHsyncFall(uint64_t cycle) {
   haveHsyncFall_ = true;
 
   if (!haveVsyncFall_) return;  // not inside a frame period yet
-  ++lineCounter_;
   ++hsyncFallsThisPeriod_;
 
-  // This hsync fall anchors the visible pixels of the NEXT line (they follow
-  // the sync pulse + back porch). lineCounter 35 -> visible row 0, and the
-  // pixels start 144 pixel clocks after this fall.
-  if (cpp_ != 0 && lineCounter_ >= kVBlankLines &&
-      lineCounter_ < kVBlankLines + kHeight) {
-    inVisibleRow_ = true;
-    row_ = lineCounter_ - kVBlankLines;
-    col_ = 0;
-    nextPixelCycle_ = cycle + static_cast<uint64_t>(kHVisibleOffsetPix) * cpp_ + cpp_ / 2;
-  } else {
-    inVisibleRow_ = false;
+  inVisibleRow_ = false;
+  if (cpp_ != 0) {
+    const uint64_t firstPixel =
+        cycle + static_cast<uint64_t>(kHVisibleOffsetPix) * cpp_ + cpp_ / 2;
+    // Locate the reconstructed pixel within the Vsync-relative scanline,
+    // rather than counting Hsync edges inclusively. Vsync can fall at the
+    // start of visible/front-porch timing (the shipped demo) or coincide
+    // with Hsync. Counting their coincident falls as line 1 introduces a
+    // one-row shift while passing all period checks.
+    const uint64_t line =
+        (firstPixel - vsyncFallCycle_) / (static_cast<uint64_t>(kHTotal) * cpp_);
+    if (line >= kVBlankLines && line < kVBlankLines + kHeight) {
+      inVisibleRow_ = true;
+      row_ = static_cast<uint32_t>(line - kVBlankLines);
+      col_ = 0;
+      nextPixelCycle_ = firstPixel;
+    }
   }
 }
 
@@ -108,7 +117,7 @@ void VgaFrameAssembler::onVsyncFall(uint64_t cycle) {
   periodErrors_.clear();
   haveVsyncFall_ = true;
   vsyncFallCycle_ = cycle;
-  lineCounter_ = 0;
+  haveVsyncLow_ = false;
   hsyncFallsThisPeriod_ = 0;
   inVisibleRow_ = false;
   pixelsThisFrame_ = 0;
@@ -123,6 +132,10 @@ void VgaFrameAssembler::finalizeFrame(uint64_t cycle) {
     fail("frame filled " + std::to_string(pixelsThisFrame_) + " of " +
          std::to_string(kWidth * kHeight) + " pixels");
   const uint64_t period = cycle - vsyncFallCycle_;
+  if (haveVsyncLow_ && vsyncLowCycles_ > period / 2)
+    fail("vsync appears active-HIGH (low " + std::to_string(vsyncLowCycles_) +
+         " of " + std::to_string(period) + " cycles); this model expects "
+         "active-low sync");
   if (cpp_ != 0 && period != static_cast<uint64_t>(kHTotal) * kVTotal * cpp_)
     fail("frame period " + std::to_string(period) + " != " +
          std::to_string(static_cast<uint64_t>(kHTotal) * kVTotal * cpp_));
