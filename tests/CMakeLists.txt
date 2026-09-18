@@ -128,3 +128,18 @@ verilate(sim_binding_ranges
 add_executable(test_binding_ranges test_binding_ranges.cpp)
 target_link_libraries(test_binding_ranges PRIVATE vb_constraints vb_engine sim_binding_ranges)
 add_test(NAME binding_ranges COMMAND test_binding_ranges)
+
+add_executable(test_peripheral_contract test_peripheral_contract.cpp)
+target_link_libraries(test_peripheral_contract PRIVATE vb_board vb_engine)
+add_test(NAME peripheral_contract COMMAND test_peripheral_contract)
+
+# Same UART RTL at a shorter divisor exposes long-stream rate drift quickly.
+add_library(sim_uart_echo_fast STATIC)
+verilate(sim_uart_echo_fast
+  SOURCES ${CMAKE_SOURCE_DIR}/examples/uart_echo.v
+  TOP_MODULE uart_echo
+  OPT_FAST "-O2" OPT_GLOBAL "-O2"
+  VERILATOR_ARGS --public-flat-rw --trace-vcd --timescale 1ns/1ns -Wall -GBIT=17)
+add_executable(test_uart_stream test_uart_stream.cpp)
+target_link_libraries(test_uart_stream PRIVATE vb_board vb_engine sim_uart_echo_fast)
+add_test(NAME uart_stream COMMAND test_uart_stream)

@@ -31,6 +31,7 @@ public:
 private:
   uint64_t cyclesPerBit_;
   bool receiving_ = false;
+  bool startValidated_ = false;
   uint64_t startCycle_ = 0;  // grid cycle where the start bit was first seen
   uint32_t bitIndex_ = 0;    // next data/stop bit to sample (0..8; 8 = stop)
   uint8_t shift_ = 0;

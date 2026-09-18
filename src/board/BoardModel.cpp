@@ -222,11 +222,13 @@ void BoardModel::setSwitch(uint32_t i, bool on) {
 }
 
 bool BoardModel::hasButton(Button b) const {
-  return buttons_[static_cast<uint32_t>(b)] != nullptr;
+  const uint32_t i = static_cast<uint32_t>(b);
+  return i < buttons_.size() && buttons_[i] != nullptr;
 }
 
 bool BoardModel::buttonState(Button b) const {
-  return buttonState_[static_cast<uint32_t>(b)];
+  const uint32_t i = static_cast<uint32_t>(b);
+  return i < buttonState_.size() && buttonState_[i];
 }
 
 void BoardModel::setButton(Button b, bool pressed) {

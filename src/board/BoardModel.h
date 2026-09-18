@@ -39,7 +39,7 @@ public:
   // multiple of this constant, regardless of how callers slice tick() — so
   // the structured log is a pure function of (stimulus schedule, total
   // cycles), never of frame sizes or driver refactors.
-  // Capture contract (aliasing): a display digit is guaranteed captured iff
+  // Capture contract (aliasing): a display digit is guaranteed captured if
   // its ACTIVE-anode window (dwell minus any ghost-prevention blanking)
   // spans >= 2 chunks (>= 20 us). Sub-chunk active windows whose mux period
   // is a chunk multiple phase-lock to permanently dark — documented, not

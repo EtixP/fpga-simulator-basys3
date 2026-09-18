@@ -9,11 +9,23 @@ UartTxDecoder::Result UartTxDecoder::sample(uint64_t now, bool level) {
   if (!receiving_) {
     if (!level) {  // start bit
       receiving_ = true;
+      startValidated_ = false;
       startCycle_ = now;
       bitIndex_ = 0;
       shift_ = 0;
     }
     return r;
+  }
+  // A low observation is only a candidate start. Reject pulses that have
+  // returned high by the start-bit center, without inventing a received byte
+  // (or a stop-bit framing error) from the subsequent idle line.
+  if (!startValidated_) {
+    if (now < startCycle_ + cyclesPerBit_ / 2) return r;
+    if (level) {
+      receiving_ = false;
+      return r;
+    }
+    startValidated_ = true;
   }
   // Sample data bit n at start + (1.5 + n) * bit, stop at start + 9.5 * bit —
   // i.e. the first grid crossing at/after each nominal center.

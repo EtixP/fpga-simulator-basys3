@@ -6,15 +6,16 @@
 //
 // Counter idiom per the CLAUDE.md decision log: 32-bit counters compared
 // against integer localparams, sized increments, no declaration initializers.
-module uart_echo(
+module uart_echo #(
+  parameter integer BIT = 10417        // 100 MHz / 9600 baud
+)(
   input  wire clk,
   input  wire btnC,
   input  wire RsRx,
   output wire RsTx,
   output wire led
 );
-  localparam integer BIT = 10417;       // 100 MHz / 9600 baud
-  localparam integer BIT_HALF = 5208;   // mid-bit offset
+  localparam integer BIT_HALF = BIT / 2;  // mid-bit offset
 
   // --- receiver -------------------------------------------------------------
   // After start-bit detection, sample bit n's center at
@@ -30,10 +31,10 @@ module uart_echo(
   reg        rx_valid;                  // one-cycle strobe: clean byte received
 
   // --- transmitter ----------------------------------------------------------
-  // One-deep pending buffer between RX and TX: a TX frame is busy for
-  // 10*BIT+1 cycles while back-to-back input arrives every 10*BIT — without
-  // the buffer, every byte after the first would land on the exact cycle TX
-  // is still clearing and be dropped.
+  // One-deep pending buffer between RX and TX. At the end of a full stop
+  // bit, hand a pending byte straight to TX: adding an idle cycle per frame
+  // would make TX slower than continuous RX and eventually overflow this
+  // buffer. Simultaneous consumption and reception preserve the new byte.
   reg        pend_valid;
   reg [7:0]  pend_byte;
   reg        tx_busy;
@@ -89,7 +90,7 @@ module uart_echo(
 
       if (!tx_busy) begin
         if (pend_valid) begin
-          pend_valid <= 1'b0;
+          pend_valid <= rx_valid;
           tx_busy <= 1'b1;
           tx_shift <= {1'b1, pend_byte};
           tx_out <= 1'b0;  // start bit
@@ -101,8 +102,17 @@ module uart_echo(
         if (tx_cnt == BIT - 1) begin
           tx_cnt <= 32'd0;
           if (tx_bit == 4'd9) begin
-            tx_busy <= 1'b0;  // stop bit complete
-            tx_out <= 1'b1;
+            // The previous stop bit has lasted BIT cycles. Starting the
+            // next frame now sustains the receiver's 10*BIT-cycle cadence.
+            if (pend_valid || rx_valid) begin
+              pend_valid <= pend_valid && rx_valid;
+              tx_shift <= {1'b1, pend_valid ? pend_byte : rx_byte};
+              tx_out <= 1'b0;
+              tx_bit <= 4'd0;
+            end else begin
+              tx_busy <= 1'b0;
+              tx_out <= 1'b1;
+            end
           end else begin
             tx_out <= tx_shift[0];
             tx_shift <= {1'b1, tx_shift[8:1]};
