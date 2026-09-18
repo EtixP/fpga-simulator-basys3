@@ -1,5 +1,13 @@
 # CLAUDE.md — VirtualBasys: a Mac-native Basys 3 FPGA simulator
 
+## Session recovery for the Qt migration
+
+After this file, read `docs/current_state.md`, `docs/migration_plan.md`,
+`docs/simulator_invariants.md`, then the latest relevant entries in
+`docs/implementation_history.md`. Those files record the current audit/migration
+state; the historical milestones below are background, not a reason to repeat work.
+Do not begin Qt work before the documented migration gate passes.
+
 ## Project overview
 
 VirtualBasys is a macOS-native simulation tool for the Digilent Basys 3 (AMD Artix-7)
@@ -325,7 +333,7 @@ Added in milestone 1.4 (seven-seg, buttons, structured log, stopwatch golden):
   the SLOW-peripheral observation mechanism (seven-seg ~kHz mux, LEDs, 1.5's
   UART at ~10.4k cycles/bit); 1.6's VGA (4 cycles/pixel) needs an engine-side
   tap, not a finer grid.
-- **Seven-seg capture contract**: a digit is guaranteed captured iff its
+- **Seven-seg capture contract**: a digit is guaranteed captured if its
   ACTIVE-anode window (dwell minus ghost-prevention blanking) spans >= 2
   chunks; sub-chunk active windows on chunk-multiple mux periods phase-lock
   to permanently dark (verified failure mode — documented, unsupported).
@@ -387,10 +395,12 @@ Added in milestone 1.5 (UART):
   2-state zero-init would otherwise present a spurious start bit at power-on.
   Designs must still btnC-reset their RX synchronizers (R6): the engine
   settles t=0 with all inputs low before the poke lands.
-- **Echo designs need a one-deep RX->TX pending buffer**: a TX frame is busy
+- **Historical UART buffering rationale (corrected in the pre-migration audit)**: a TX frame is busy
   10*BIT+1 cycles while back-to-back input arrives every 10*BIT — without the
   buffer every byte after the first lands on the busy-clearing edge and drops
-  (uart_echo.v documents this).
+  A finite buffer only delays sustained rate loss; the pre-migration correction
+  hands off pending TX bytes immediately after the full stop bit. See
+  docs/simulator_invariants.md and docs/pre_migration_audit.md.
 - **The RX driver owns the line through the stop bit's FULL duration**: a
   send() issued during the stop tail defers its start bit to frameStart +
   10*BIT rather than truncating the frame in flight (truncation silently
