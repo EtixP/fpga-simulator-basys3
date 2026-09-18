@@ -6,7 +6,7 @@ Target: Verilator / future NetlistEngine → SimEngine → BoardModel → thin Q
 adapter → QML. QML must never obtain engine objects or peripheral timing logic.
 Preserve C++20 abstractions, cycle semantics, byte/pixel outputs and existing goldens.
 
-## Pre-migration milestones (this session only)
+## Pre-migration milestones (completed)
 - P0: inspect repository; build legacy GUI and run full baseline suite; record plan/state.
 - P1: code-and-test audit of engine, board/peripherals, XDC, integration and frontend
   boundaries; classify coverage and add independent adversarial regression cases.
@@ -18,7 +18,7 @@ Migration gate: full existing and audit suites pass; confirmed correctness bugs 
 resolved; independent review has no blockers; invariants and reproducible performance
 baseline exist. No Qt implementation in P0–P3. Unmet requirements keep the gate closed.
 
-## Qt milestones (future sessions, one at a time)
+## Qt milestones (one at a time)
 | Milestone | Scope | Acceptance |
 |---|---|---|
 | M0 | Qt 6 infrastructure alongside legacy GUI; VB_BUILD_QT_GUI | Both optional frontend builds and existing suite pass |
@@ -37,7 +37,7 @@ Never weaken tests or regenerate golden data merely to hide failures.
 
 ## Dependencies and unresolved decisions
 - Existing Verilator 5.050, CMake, C++20; legacy SDL2/Metal remains until parity.
-- M0 will require Qt6 Core/Gui/Quick/Qml/QuickControls2; no new dependency now.
+- Optional Qt ≥6.5 Core/Gui/Quick/Qml/QuickControls2; VB_BUILD_QT_GUI defaults OFF.
 - Decide adapter/controller threading and QObject ownership before M1/M4.
 - Define board-level reset/trace/inspection APIs without bypassing BoardModel.
 - Choose VGA scene-graph/native texture versus QQuickItem/QImage after measurements.

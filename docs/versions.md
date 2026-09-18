@@ -11,6 +11,7 @@ workflow must pin these same versions.
 | Yosys | 0.66 | Homebrew | installed, first used in phase 3 (synthesis / NetlistEngine) |
 | SDL2 | sdl2-compat 2.32.70 | Homebrew | GUI; found via find_package(SDL2 CONFIG) |
 | Dear ImGui | v1.92.8 | git submodule (third_party/imgui) | pinned to release tag; SDL2+Metal in-tree backends |
+| Qt | 6.11.2 | Homebrew `qtbase` + `qtdeclarative` | optional Qt frontend only; minimum 6.5; Core/Gui/Quick/Qml/QuickControls2 |
 | Surfer | 0.7.0 | Homebrew | VCD acceptance gate (headless `surfer server`); NOTE: Homebrew's gtkwave cask is DISABLED upstream — GTKWave only via GitHub-release app, manual |
 | macOS | Darwin 25.5.0, arm64 | — | Apple Silicon primary target |
 

@@ -10,6 +10,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 find_package(verilator REQUIRED)
 
 option(VB_BUILD_GUI "Build the Dear ImGui SDL2/Metal GUI (macOS)" ON)
+option(VB_BUILD_QT_GUI "Build the Qt Quick frontend" OFF)
 
 enable_testing()
 add_subdirectory(examples)  # verilated design libraries (sim_*)

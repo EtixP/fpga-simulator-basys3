@@ -99,3 +99,8 @@ if(VB_BUILD_GUI AND APPLE)
     VB_DEFAULT_XDC="${CMAKE_SOURCE_DIR}/examples/vga_pattern.xdc")
   target_link_libraries(virtualbasys_vga PRIVATE vb_gui vb_engine sim_vga_pattern)
 endif()
+
+# Keep Qt discovery and autogen settings local to this optional frontend.
+if(VB_BUILD_QT_GUI)
+  add_subdirectory(qt)
+endif()
