@@ -99,3 +99,22 @@ verilate(sim_ioport
 add_executable(test_inout_contract test_inout_contract.cpp)
 target_link_libraries(test_inout_contract PRIVATE vb_engine sim_ioport)
 add_test(NAME inout_contract COMMAND test_inout_contract)
+
+
+# Pre-migration audit: independent edge/init/width/context oracle.
+add_library(sim_engine_edges STATIC)
+verilate(sim_engine_edges
+  SOURCES ${CMAKE_SOURCE_DIR}/tests/data/engine_edges.v
+  TOP_MODULE engine_edges
+  OPT_FAST "-O2" OPT_GLOBAL "-O2"
+  VERILATOR_ARGS --public-flat-rw --trace-vcd --timescale 1ns/1ns
+)
+add_executable(test_engine_edges test_engine_edges.cpp)
+target_link_libraries(test_engine_edges PRIVATE vb_engine sim_engine_edges)
+add_test(NAME engine_edges COMMAND test_engine_edges
+  "${CMAKE_CURRENT_BINARY_DIR}/engine_edges.vcd")
+set_tests_properties(engine_edges PROPERTIES
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/data")
+
+add_test(NAME stopwatch_vcd_harness COMMAND test_stopwatch_vcd harness unused)
+set_tests_properties(stopwatch_vcd_harness PROPERTIES TIMEOUT 10)

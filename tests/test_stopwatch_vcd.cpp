@@ -16,10 +16,14 @@
 #include "check.h"
 #include "engine/VerilatorEngine.h"
 
+#include <cerrno>
+#include <chrono>
+#include <cstdlib>
 #include <csignal>
 #include <cstring>
 #include <fstream>
 #include <iterator>
+#include <poll.h>
 #include <set>
 #include <sstream>
 #include <string>
@@ -125,7 +129,7 @@ int validateStructure(const char* vcdPath) {
   return 0;
 }
 
-int surferGate(const char* vcdPath, const char* surferPath) {
+int surferGate(const char* vcdPath, const char* surferPath, int timeoutMs = 10000) {
   if (!surferPath || !*surferPath || access(surferPath, X_OK) != 0) {
     std::fprintf(stderr, "surfer not available — SKIP\n");
     return 77;
@@ -139,31 +143,46 @@ int surferGate(const char* vcdPath, const char* surferPath) {
     dup2(fds[1], 2);
     close(fds[0]);
     close(fds[1]);
-    execl(surferPath, "surfer", "server", "--file", vcdPath, "--port", "47653",
+    // The verdict is an info-level log. Do not inherit RUST_LOG=warn from
+    // an editor/CI environment and then wait forever for suppressed output.
+    setenv("RUST_LOG", "info", 1);
+    execl(surferPath, "surfer", "server", "--file", vcdPath, "--port", "0",
           static_cast<char*>(nullptr));
     _exit(127);
   }
   close(fds[1]);
-  // Read the server's output until it either reports a loaded header
-  // (success) or exits (parse failure / exec failure).
-  FILE* out = fdopen(fds[0], "r");
-  char buf[512];
+  // Read with an internal deadline, including partial lines. Always reap
+  // our server; ctest's outer timeout must not leave an orphan behind.
+  const auto deadline = std::chrono::steady_clock::now() +
+                        std::chrono::milliseconds(timeoutMs);
   bool loadedBody = false, parseError = false;
-  while (fgets(buf, sizeof buf, out)) {
-    // "Loaded header" comes ~100 us in, BEFORE the body parse — waiting for
-    // "Loaded body" is what actually gates the waveform content.
-    if (std::strstr(buf, "Loaded body")) { loadedBody = true; break; }
-    if (std::strstr(buf, "Failed to parse") || std::strstr(buf, "Error") ||
-        std::strstr(buf, "panic") || std::strstr(buf, "crashed")) {
-      parseError = true;
-      break;
-    }
+  std::string output;
+  while (std::chrono::steady_clock::now() < deadline) {
+    const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+        deadline - std::chrono::steady_clock::now()).count();
+    if (remaining <= 0) break;
+    pollfd fd{fds[0], POLLIN, 0};
+    const int ready = poll(&fd, 1, static_cast<int>(remaining));
+    if (ready < 0 && errno == EINTR) continue;
+    if (ready <= 0) break;
+    char buf[4096];
+    const auto count = read(fds[0], buf, sizeof buf);
+    if (count < 0 && errno == EINTR) continue;
+    if (count <= 0) break;
+    output.append(buf, static_cast<size_t>(count));
+    parseError = output.find("Failed to parse") != std::string::npos ||
+                 output.find("Error") != std::string::npos ||
+                 output.find("panic") != std::string::npos ||
+                 output.find("crashed") != std::string::npos;
+    loadedBody = output.find("Loaded body") != std::string::npos;
+    if (parseError || loadedBody) break;
+    if (output.size() > 65536) output.erase(0, output.size() - 4096);
   }
-  kill(pid, SIGTERM);
+  kill(pid, SIGKILL); // test-owned server has completed its only useful job
   int status = 0;
-  waitpid(pid, &status, 0);
-  fclose(out);
-  if (loadedBody) {
+  while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
+  close(fds[0]);
+  if (loadedBody && !parseError) {
     std::puts("test_stopwatch_vcd surfer: PASS");
     return 0;
   }
@@ -171,8 +190,8 @@ int surferGate(const char* vcdPath, const char* surferPath) {
     std::fprintf(stderr, "surfer rejected the VCD (parse error or loader panic)\n");
     return 1;
   }
-  std::fprintf(stderr, "surfer produced no verdict — SKIP\n");
-  return 77;
+  std::fprintf(stderr, "surfer produced no verdict before exit/deadline — FAIL\n");
+  return 1;
 }
 
 // Corrupt `src` into `dst` per `mode`, then run <self> validate <dst> and
@@ -227,6 +246,32 @@ int expectValidateFails(const char* self, const std::string& src,
 
 int main(int argc, char** argv) {
   CHECK(argc >= 3);
+  // A tiny child-server fixture exercises the actual subprocess reader.
+  if (std::strcmp(argv[1], "server") == 0 && argc >= 4 &&
+      std::string(argv[3]).starts_with("vb-harness-")) {
+    CHECK(std::string(std::getenv("RUST_LOG")) == "info");
+    const std::string mode = argv[3];
+    if (mode == "vb-harness-success") {
+      write(STDOUT_FILENO, "Loaded ", 7);
+      usleep(10000);
+      write(STDOUT_FILENO, "body\n", 5);
+    } else if (mode == "vb-harness-panic") {
+      write(STDOUT_FILENO, "Loaded header\npanic\n", 20);
+    } else if (mode == "vb-harness-silent") {
+      return 0;
+    }
+    for (;;) pause(); // reader must terminate and reap even a silent server
+  }
+  if (std::strcmp(argv[1], "harness") == 0) {
+    setenv("RUST_LOG", "warn", 1); // regression for the original baseline hang
+    CHECK_EQ(surferGate("vb-harness-success", argv[0], 1000), 0);
+    CHECK_EQ(surferGate("vb-harness-panic", argv[0], 1000), 1);
+    CHECK_EQ(surferGate("vb-harness-silent", argv[0], 1000), 1);
+    CHECK_EQ(surferGate("vb-harness-hang", argv[0], 100), 1);
+    CHECK_EQ(surferGate("unused", "/no-such-vb-surfer"), 77);
+    std::puts("test_stopwatch_vcd harness: PASS");
+    return 0;
+  }
   if (std::strcmp(argv[1], "structural") == 0) {
     const int w = writeTrace(argv[2]);
     if (w != 0) return w;
