@@ -82,6 +82,7 @@ void VerilatorEngine::bindThreadContext() const {
 bool VerilatorEngine::varSupported(const VerilatedVar& var) {
   if (var.udims() != 0) return false;  // memories/unpacked arrays: reject, don't
                                        // silently alias element 0
+  if (var.pdims() > 1) return false;  // no multidimensional indexing contract
   switch (var.vltype()) {
     case VLVT_UINT8:
     case VLVT_UINT16:
@@ -101,6 +102,10 @@ SignalId VerilatorEngine::registerVar(const VerilatedVar& var, std::string name,
   e.datap = var.datap();
   e.vltype = var.vltype();
   e.width = var.entBits();
+  if (var.pdims() == 1) {
+    const auto& range = var.packedRanges().front();
+    e.packedRange = SignalInfo::PackedRange{range.left(), range.right()};
+  }
   // Direction is only trustworthy in the ports scope (module-scope vars are
   // all VLVD_NODIR) — and only ports-scope storage is safe to write anyway.
   e.input = fromPortsScope && var.vldir() == VLVD_IN;
@@ -111,7 +116,7 @@ SignalId VerilatorEngine::registerVar(const VerilatedVar& var, std::string name,
   byName_.emplace(entries_.back().name, id);
   if (fromPortsScope)
     portList_.push_back(SignalInfo{entries_.back().name, entries_.back().width,
-                                   entries_.back().input});
+                                   entries_.back().input, entries_.back().packedRange});
   return id;
 }
 
@@ -156,7 +161,7 @@ const VerilatorEngine::Entry& VerilatorEngine::entryFor(SignalId id) const {
 
 SignalInfo VerilatorEngine::info(SignalId id) const {
   const Entry& e = entryFor(id);
-  return SignalInfo{e.name, e.width, e.input};
+  return SignalInfo{e.name, e.width, e.input, e.packedRange};
 }
 
 std::vector<SignalInfo> VerilatorEngine::ports() const { return portList_; }

@@ -11,7 +11,7 @@ namespace vb {
 // One get_ports target: "clk" -> {clk, nullopt}; "{sw[3]}" -> {sw, 3}.
 struct PortRef {
   std::string port;
-  std::optional<uint32_t> bit;
+  std::optional<int32_t> bit;
 
   bool operator==(const PortRef&) const = default;
   std::string toString() const;
@@ -53,6 +53,9 @@ struct XdcDoc {
   std::vector<std::string> warnings;
 };
 
+// Literal Tcl subset: braces/quotes/escapes, command separators and line
+// continuations. Only get_ports/current_design command targets are resolved;
+// variables, arbitrary command substitutions and scripts warn and skip.
 XdcDoc parseXdc(std::string_view text);
 
 // Canonical serialization: parse(writeXdc(doc)) is semantically equal to doc,

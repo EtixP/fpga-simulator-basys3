@@ -172,11 +172,110 @@ static void checkGrammarVariants() {
   }
 }
 
+static void checkLiteralSyntaxAndValidation() {
+  const XdcDoc doc = parseXdc(
+      "set_property PACKAGE_PIN \"V17\" [get_ports \"sw\\[0\\]\"]; "
+      "set_property IOSTANDARD LVCMOS33 [get_ports {sw[0]}]\n"
+      "set_property -dict {\n PACKAGE_PIN V16\n IOSTANDARD LVCMOS33\n} "
+      "[get_ports {sw[1]}]\n"
+      "set_property PACKAGE_PIN \\\n V15 [get_ports {sw[-2]}]\n"
+      "create_clock -name \"system clock\" -period 10 \\\n"
+      " -waveform {0 5} [get_ports clk];# trailing comment\n");
+  CHECK_EQ(doc.warnings.size(), 0);
+  CHECK_EQ(doc.pins.size(), 3);
+  CHECK(doc.pins[0].port == (PortRef{"sw", 0}));
+  CHECK(doc.pins[0].packagePin == "V17");
+  CHECK(doc.pins[0].iostandard == "LVCMOS33");
+  CHECK(doc.pins[1].packagePin == "V16");
+  CHECK(doc.pins[2].port.toString() == "sw[-2]");
+  CHECK_EQ(doc.clocks.size(), 1);
+  CHECK(doc.clocks[0].name == "system clock");
+  CHECK(semanticallyEqual(doc, parseXdc(writeXdc(doc))));
+
+  // Tcl removes grouping delimiters before command option interpretation.
+  const XdcDoc groupedOptions = parseXdc(
+      "set_property {-dict} {PACKAGE_PIN V17 IOSTANDARD LVCMOS33} [get_ports sw]\n"
+      "create_clock {-add} {-name} clock {-period} 10 {-waveform} {7 2} [get_ports clk]\n");
+  CHECK(groupedOptions.warnings.empty());
+  CHECK_EQ(groupedOptions.pins.size(), 1);
+  CHECK(groupedOptions.pins[0].packagePin == "V17");
+  CHECK(groupedOptions.pins[0].iostandard == "LVCMOS33");
+  CHECK(groupedOptions.pins[0].extraProps.empty());
+  CHECK_EQ(groupedOptions.clocks.size(), 1);
+  CHECK(groupedOptions.clocks[0].add);
+  CHECK(groupedOptions.clocks[0].name == "clock");
+  CHECK(groupedOptions.clocks[0].waveformNs == (std::pair{7.0, 2.0}));
+
+  // Literal values must survive exactly, including significant whitespace,
+  // Tcl metacharacters and escaped unmatched braces. No Tcl is evaluated.
+  const XdcDoc literals = parseXdc(
+      "set_property A {A#B} [current_design]\n"
+      "set_property B {A[B]} [current_design]\n"
+      "set_property C { A } [current_design]\n"
+      "set_property D {$not_a_variable; \\\\ literal} [current_design]\n"
+      "set_property E \"a\\{b\\}c\\[d\\]\\$e\\\\f\\\"\" [current_design]\n"
+      "set_property F {line one\nline two} [current_design]\n"
+      "set_property G a#b [current_design]\n");
+  CHECK_EQ(literals.warnings.size(), 0);
+  CHECK_EQ(literals.designProps.size(), 7);
+  CHECK(literals.designProps[2].second == " A ");
+  CHECK(literals.designProps[4].second == "a{b}c[d]$e\\f\"");
+  const std::string serialized = writeXdc(literals);
+  const XdcDoc re = parseXdc(serialized);
+  CHECK_EQ(re.warnings.size(), 0);
+  CHECK(semanticallyEqual(literals, re));
+  CHECK(writeXdc(re) == serialized);
+
+  const XdcDoc delimiters = parseXdc(
+      "set_property OPEN \"a\\{\" [get_ports clk]\n"
+      "set_property CLOSE \"b\\}\" [get_ports clk]\n"
+      "set_property SLASH \"c\\\\\" [get_ports clk]\n"
+      "create_clock -name \"c\\{\\\\\" -period 10 [get_ports clk]\n");
+  CHECK(delimiters.warnings.empty());
+  CHECK(semanticallyEqual(delimiters, parseXdc(writeXdc(delimiters))));
+
+  // Reject evaluation-dependent forms as a whole, without applying the
+  // literal parts and pretending the resulting constraints are complete.
+  for (const char* source : {
+           "set_property PACKAGE_PIN $pin [get_ports clk]\n",
+           "set_property PACKAGE_PIN [list W5] [get_ports clk]\n",
+           "set_property PACKAGE_PIN W5 [get_ports $clock]\n",
+           "set_property PACKAGE_PIN W5 [get_ports \"$clock\"]\n",
+           "set_property PACKAGE_PIN W5 [get_ports \"[list clk]\"]\n",
+           "set_property PACKAGE_PIN W5 [get_ports {bus[0][1]}]\n",
+           "set_property PACKAGE_PIN W5 [get_ports {a\nb}]\n",
+           "set_property PACKAGE_PIN W5 [get_ports {sw*}]\n",
+           "set_property PACKAGE_PIN W5 [get_ports {?}]\n"}) {
+    const XdcDoc unsupported = parseXdc(source);
+    CHECK(unsupported.pins.empty());
+    CHECK(!unsupported.warnings.empty());
+  }
+  for (const char* value : {"nan", "inf", "-inf", "0", "-10", "1e999"}) {
+    const XdcDoc bad = parseXdc(std::string("create_clock -period ") + value +
+                              " [get_ports clk]\n");
+    CHECK(bad.clocks.empty());
+    CHECK(!bad.warnings.empty());
+  }
+  for (const char* waveform : {"nan 5", "0 inf", "-1 4", "5 5", "0 11"}) {
+    const XdcDoc bad = parseXdc(std::string("create_clock -period 10 -waveform {") +
+                              waveform + "} [get_ports clk]\n");
+    CHECK_EQ(bad.clocks.size(), 1);
+    CHECK(!bad.clocks[0].waveformNs);
+    CHECK(!bad.warnings.empty());
+  }
+  // AMD UG835 explicitly permits falling edges earlier than rising edges.
+  const XdcDoc reversed = parseXdc("create_clock -period 10 -waveform {7 2} [get_ports clk]\n");
+  CHECK(reversed.warnings.empty());
+  CHECK_EQ(reversed.clocks.size(), 1);
+  CHECK(reversed.clocks[0].waveformNs == (std::pair{7.0, 2.0}));
+}
+
 int main(int argc, char** argv) {
   CHECK(argc >= 3);
   checkShippedDefault(readFile(argv[1]));
   checkPristine(readFile(argv[2]));
   checkGrammarVariants();
+  checkLiteralSyntaxAndValidation();
   std::puts("test_xdc: PASS");
   return 0;
 }

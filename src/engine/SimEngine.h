@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -16,9 +17,20 @@ enum class SignalId : uint32_t {};
 inline constexpr SignalId kNoSignal{0xFFFFFFFFu};
 
 struct SignalInfo {
+  struct PackedRange {
+    int32_t left;
+    int32_t right;
+  };
   std::string name;    // as resolved: "led", "sw", "counter.count"
   uint32_t width = 0;  // bits; 1..64 in phase 1
   bool input = false;  // top-level input port -> poke() allowed
+  // HDL declaration indices, distinct from packed peek/poke bit positions.
+  // The right bound is packed bit 0 for either range direction. nullopt is
+  // a scalar; a one-bit vector still carries its declared range. Defaults
+  // preserve conventional [width-1:0] metadata for simple test engines.
+  std::optional<PackedRange> packedRange = width > 1
+      ? std::optional<PackedRange>{{static_cast<int32_t>(width - 1), 0}}
+      : std::nullopt;
 };
 
 // The one abstraction everything goes through (see CLAUDE.md). Board models,
@@ -44,7 +56,8 @@ public:
   //    engine may return kNoSignal after synthesis renames/dissolves them.
   //    A plain (undotted) name never resolves to an internal signal.
   // Returns kNoSignal for unknown names and unsupported signals (>64 bits,
-  // memories/unpacked arrays, non-integer types, inout ports).
+  // memories/unpacked or multidimensional packed arrays, non-integer types,
+  // inout ports).
   virtual SignalId lookup(std::string_view name) = 0;
 
   // Metadata by value — no lifetime coupling to engine internals.

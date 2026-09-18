@@ -96,6 +96,7 @@ private:
     void* datap = nullptr;
     VerilatedVarType vltype = VLVT_UNKNOWN;
     uint32_t width = 0;
+    std::optional<SignalInfo::PackedRange> packedRange;
     bool input = false;
     bool isClock = false;
     std::string name;

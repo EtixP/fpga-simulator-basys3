@@ -118,3 +118,13 @@ set_tests_properties(engine_edges PROPERTIES
 
 add_test(NAME stopwatch_vcd_harness COMMAND test_stopwatch_vcd harness unused)
 set_tests_properties(stopwatch_vcd_harness PROPERTIES TIMEOUT 10)
+
+add_library(sim_binding_ranges STATIC)
+verilate(sim_binding_ranges
+  SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/data/binding_ranges.v
+  TOP_MODULE binding_ranges
+  OPT_FAST "-O2" OPT_GLOBAL "-O2"
+  VERILATOR_ARGS --public-flat-rw --trace-vcd --timescale 1ns/1ns -Wno-ASCRANGE)
+add_executable(test_binding_ranges test_binding_ranges.cpp)
+target_link_libraries(test_binding_ranges PRIVATE vb_constraints vb_engine sim_binding_ranges)
+add_test(NAME binding_ranges COMMAND test_binding_ranges)
