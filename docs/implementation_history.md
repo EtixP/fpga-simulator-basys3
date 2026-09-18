@@ -53,4 +53,17 @@
 - Final normal GUI-enabled suite 18/18; clean headless Release ASan/UBSan suite 18/18;
   no original golden modifications. Frozen invariants and recovery documents finalized.
 - Verifier: A and B PASS, no blockers; M0 infrastructure is next, not started.
-- Benchmark commit: 4828f93; context-finalization commit is HEAD.
+- Benchmark commit: 4828f93; context-finalization commit: eb9e383.
+
+## M0 — Optional Qt infrastructure
+- Added default-OFF VB_BUILD_QT_GUI alongside legacy: embedded QML window, Qt-only
+  launcher, bounded first-render smoke test and reproducible build guide.
+- Decision: Qt ≥6.5, tested 6.11.2; discovery/autogen confined to frontend directory.
+  No simulation integration yet; adapters begin in M1. Standalone packaging deferred.
+- Tests: combined frontends 19/19; legacy-only and clean headless each 18/18 with
+  disabled dependency lookups; Qt-only smoke, QML lint, native Qt render and four
+  legacy finite screenshot runs pass. Backend commands identical; invariants/goldens
+  unchanged. Simulation performance remeasurement unnecessary: no simulation path added.
+- Verifier: fresh PASS; independent 19/19 plus broken-import, wrong-root, early-exit
+  and no-render deadline checks. Callback lifetime refinement reverified; no blockers.
+- Commit: 9f7224e.
