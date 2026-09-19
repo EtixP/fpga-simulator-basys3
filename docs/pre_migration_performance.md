@@ -1,6 +1,6 @@
 # Pre-migration performance baseline — 2026-09-18
 
-Measured after correctness fixes, before Qt work, implementation commit **996cad1**.
+Measured after correctness fixes, before Qt work, implementation commit **ba13d4a**.
 Raw samples: [pre_migration_performance.csv](pre_migration_performance.csv).
 
 | Example | Median Mcycles/s | Range Mcycles/s (3 runs) | Real-time multiplier | VGA frames/s |

@@ -1,6 +1,6 @@
 # Pre-migration correctness audit — 2026-09-18
 
-P0–P3 audit of baseline ec17bd1 on macOS arm64, Apple M1 Pro, Verilator 5.050.
+P0–P3 audit of baseline b13f14e on macOS arm64, Apple M1 Pro, Verilator 5.050.
 No Qt work or simulator rewrite. Existing golden files were not changed.
 
 ## Method and baseline

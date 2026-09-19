@@ -38,6 +38,8 @@
 - Next concrete tasks (M2): introduce the IDE shell, navigation, board/inspector and
   bottom-panel areas with functional controls and honest empty states.
   Worker scheduling and board reset/inspection APIs remain later decisions.
-- M1 implementation commit: 5834064, "feat: add tested Qt adapter and board presentation models".
-- Latest commit: HEAD, "docs: record verified Qt adapter milestone".
+- M1 implementation commit: 8d2af00, "feat: add tested Qt adapter and board presentation models".
+- Commit attribution: human Git identity only; historical AI coauthor trailers
+  removed, with future commit/session attribution disabled in .claude/settings.json.
+- Latest commit: HEAD, "chore: use personal commit attribution".
   Resolve with git rev-parse HEAD; milestone hashes are in implementation_history.md.

@@ -246,6 +246,9 @@ file and record them in docs/versions.md when bumping.
 
 ## Conventions for Claude Code
 
+- Commit using the configured human Git identity. Do not add AI coauthor or
+  Claude session trailers to commit messages; repository attribution settings
+  are in `.claude/settings.json`.
 - Language: C++20 for the tool. Verilog examples must be synthesizable
   (Vivado-compatible subset); testbench-only constructs stay in /tests.
 - Every peripheral model gets a headless unit test (no GUI needed) driving it through
