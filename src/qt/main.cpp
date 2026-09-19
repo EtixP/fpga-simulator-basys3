@@ -1,12 +1,17 @@
+#include "qt/BoardAdapter.h"
+
 #include <QCommandLineParser>
 #include <QDebug>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQuickWindow>
 #include <QTimer>
+#include <QtQml/qqmlextensionplugin.h>
 
 #include <cstdio>
 #include <cstdlib>
+
+Q_IMPORT_QML_PLUGIN(VirtualBasys_BoardPlugin)
 
 int main(int argc, char* argv[]) {
     QGuiApplication app(argc, argv);
@@ -22,9 +27,13 @@ int main(int argc, char* argv[]) {
     parser.process(app);
     const bool smokeTest = parser.isSet(smokeOption);
 
-    // The engine owns the QML objects and is destroyed before the application.
-    // M0 has no simulator objects; future adapters must go through BoardModel.
+    // The application owns the adapter; QML is destroyed before it. No design
+    // is loaded yet. A future composition root must keep BoardModel alive longer.
+    vb::qt::BoardAdapter boardAdapter;
+    QQmlEngine::setObjectOwnership(&boardAdapter, QQmlEngine::CppOwnership);
     QQmlApplicationEngine engine;
+    engine.setInitialProperties({{QStringLiteral("board"),
+                                 QVariant::fromValue(&boardAdapter)}});
     engine.loadFromModule("VirtualBasys", "Main");
     if (engine.rootObjects().isEmpty()) {
         qCritical() << "Failed to load the VirtualBasys QML module.";

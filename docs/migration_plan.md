@@ -38,7 +38,8 @@ Never weaken tests or regenerate golden data merely to hide failures.
 ## Dependencies and unresolved decisions
 - Existing Verilator 5.050, CMake, C++20; legacy SDL2/Metal remains until parity.
 - Optional Qt ≥6.5 Core/Gui/Quick/Qml/QuickControls2; VB_BUILD_QT_GUI defaults OFF.
-- Decide adapter/controller threading and QObject ownership before M1/M4.
+- M1 uses a C++-owned adapter borrowing BoardModel on the GUI thread; QML sees
+  cached child models. Revisit controller threading explicitly in M4.
 - Define board-level reset/trace/inspection APIs without bypassing BoardModel.
 - Choose VGA scene-graph/native texture versus QQuickItem/QImage after measurements.
 - XDC remains a bounded literal subset; declared HDL indices are preserved separately

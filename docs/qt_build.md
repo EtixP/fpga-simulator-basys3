@@ -1,12 +1,14 @@
 # Qt frontend development
 
-M0 provides an optional Qt Quick window with an empty state. Simulator integration
-starts with the BoardModel adapter in M1. The existing ImGui demos remain available.
+The optional Qt Quick window currently shows an empty state. M1 supplies a tested
+BoardModel adapter and presentation models; design loading and interactive board
+controls follow in later milestones. The existing ImGui demos remain available.
 
 ## Dependencies and build
 
 The optional frontend requires Qt 6.5 or newer with Core, Gui, Quick, Qml and
-QuickControls2. Tested on macOS arm64 with Qt 6.11.2; see [versions.md](versions.md).
+QuickControls2, plus Test for headless adapter tests. Tested on macOS arm64 with
+Qt 6.11.2; see [versions.md](versions.md).
 For Homebrew, install the base and declarative modules:
 
 ```sh
@@ -32,9 +34,10 @@ keeps its default `ON` and builds the legacy frontend on macOS only:
 | ON | OFF | Qt frontend; no SDL2/ImGui dependency |
 | OFF | OFF | Headless libraries/tests; neither GUI dependency |
 
-Qt discovery and autogen settings stay in the frontend subdirectory. The M0
-executable links only Qt, with no simulator or BoardModel objects. Later QML
-integration must go through a thin BoardModel adapter.
+Qt discovery and autogen settings stay in the frontend subdirectory. The launcher
+consumes the `VirtualBasys.Board` adapter module, which reads BoardModel and keeps
+the simulator outside QML. The launcher has no loaded design yet. Ownership, API
+and testing details are in [qt_adapter.md](qt_adapter.md).
 
 ## Verification
 

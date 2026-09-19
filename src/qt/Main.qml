@@ -1,7 +1,10 @@
 import QtQuick
 import QtQuick.Controls
+import VirtualBasys.Board
 
 ApplicationWindow {
+    id: window
+    required property BoardAdapter board
     width: 960
     height: 640
     minimumWidth: 480
@@ -11,6 +14,6 @@ ApplicationWindow {
 
     Label {
         anchors.centerIn: parent
-        text: qsTr("No board connected")
+        text: window.board.connected ? qsTr("Board ready") : qsTr("No board connected")
     }
 }
