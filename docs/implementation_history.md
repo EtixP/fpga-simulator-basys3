@@ -81,3 +81,19 @@
 - Verifier: fresh PASS; independent full suite and ownership/GC/teardown/thread/
   notification probes. Nonblocking QtTest GUI-metatype diagnostic documented.
 - Commit: 8d2af00.
+
+## M2 — Qt application shell
+- Added the toolbar, project navigation, board/overview workspace, inspector and
+  Terminal/UART/Logs/Waveforms tabs with honest empty/missing-adapter states.
+- Decision: presentation-only, session-local resizable layout; shared actions own
+  visibility/shortcuts and recover keyboard focus. Restore layout resets sizes and
+  selection. Board widgets, design loading and simulation controls remain deferred.
+- Tests: combined suite 22/22; Qt/SDL2-disabled headless 18/18; clean QML lint and
+  native Qt render. Eight shell cases pass offscreen/native (QtTest 10/10), covering
+  actual clicks/keys, splitters, focus, tab bindings and clipped-content bounds.
+  Native/default/minimum/hidden/error captures inspected. Backend/invariants/goldens
+  unchanged; no simulation execution path changed, so throughput remeasurement
+  is not applicable and the P3/M1 baselines remain the reference.
+- Verifier: fresh PASS, no issues; independent 22/22, lint, 2×-scale shell 10/10,
+  32 extreme geometries / 256 page-tab states and maximum-to-minimum resize pass.
+- Commit: 853198d.
