@@ -17,7 +17,7 @@ qt_add_qml_module(virtualbasys_qt
   URI VirtualBasys
   VERSION 1.0
   IMPORT_PATH "${CMAKE_CURRENT_BINARY_DIR}"
-  QML_FILES Main.qml
+  QML_FILES Main.qml ShellPane.qml EmptyState.qml
 )
 target_link_libraries(virtualbasys_qt PRIVATE
   Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::QuickControls2
@@ -38,6 +38,19 @@ target_include_directories(test_qt_counter PRIVATE "${CMAKE_SOURCE_DIR}/tests")
 target_link_libraries(test_qt_counter PRIVATE vb_qt_adapter vb_board vb_engine sim_counter)
 add_test(NAME qt_counter COMMAND test_qt_counter "${CMAKE_SOURCE_DIR}/examples/counter.xdc")
 set_tests_properties(qt_counter PROPERTIES TIMEOUT 20)
+
+# Exercise source QML through real mouse/keyboard events. Embedded module loading
+# is checked separately by qt_qml_smoke, so both development and packaging paths run.
+qt_add_executable(test_qt_shell "${CMAKE_SOURCE_DIR}/tests/test_qt_shell.cpp")
+target_compile_definitions(test_qt_shell PRIVATE VB_QT_QML_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(test_qt_shell PRIVATE
+  vb_qt_adapter vb_qt_adapterplugin Qt6::Test Qt6::Quick Qt6::Qml Qt6::QuickControls2
+)
+add_test(NAME qt_shell COMMAND test_qt_shell)
+set_tests_properties(qt_shell PROPERTIES
+  ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
+  TIMEOUT 60
+)
 
 # Exercise embedded QML/imports and an actual rendered frame without a display.
 add_test(NAME qt_qml_smoke COMMAND virtualbasys_qt --smoke-test)

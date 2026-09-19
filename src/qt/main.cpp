@@ -5,6 +5,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQuickWindow>
+#include <QQuickStyle>
 #include <QTimer>
 #include <QtQml/qqmlextensionplugin.h>
 
@@ -16,6 +17,7 @@ Q_IMPORT_QML_PLUGIN(VirtualBasys_BoardPlugin)
 int main(int argc, char* argv[]) {
     QGuiApplication app(argc, argv);
     QCoreApplication::setApplicationName(QStringLiteral("VirtualBasys"));
+    QQuickStyle::setStyle(QStringLiteral("Basic"));
 
     QCommandLineParser parser;
     parser.setApplicationDescription(QStringLiteral("VirtualBasys Qt frontend"));

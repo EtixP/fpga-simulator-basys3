@@ -1,14 +1,16 @@
 # Qt frontend development
 
-The optional Qt Quick window currently shows an empty state. M1 supplies a tested
-BoardModel adapter and presentation models; design loading and interactive board
-controls follow in later milestones. The existing ImGui demos remain available.
+The optional Qt Quick frontend now provides the M2 application shell: project
+navigation, a board workspace, inspector and tabbed output panel. Its layout controls
+work without a loaded design. M1 supplies the tested BoardModel adapter and models;
+interactive board controls and simulation integration follow in later milestones.
+The existing ImGui demos remain available.
 
 ## Dependencies and build
 
 The optional frontend requires Qt 6.5 or newer with Core, Gui, Quick, Qml and
-QuickControls2, plus Test for headless adapter tests. Tested on macOS arm64 with
-Qt 6.11.2; see [versions.md](versions.md).
+QuickControls2, plus Test for adapter and shell interaction tests. Tested on macOS
+arm64 with Qt 6.11.2; see [versions.md](versions.md).
 For Homebrew, install the base and declarative modules:
 
 ```sh
@@ -39,6 +41,22 @@ consumes the `VirtualBasys.Board` adapter module, which reads BoardModel and kee
 the simulator outside QML. The launcher has no loaded design yet. Ownership, API
 and testing details are in [qt_adapter.md](qt_adapter.md).
 
+## Using the shell
+
+Drag the separators to resize the project, inspector and output panes. The toolbar
+buttons toggle their visibility; **Restore layout** restores their default sizes,
+shows all panes and returns to Board / Terminal. Layout changes are session-only.
+Board and Overview select the central workspace; Terminal, UART, Logs and Waveforms
+select the bottom panel. These panels explain their current empty state. Design
+loading, command execution and simulation controls are not yet available.
+
+Keyboard shortcuts are Command+Shift+1 / 2 / 3 on macOS (Control+Shift elsewhere)
+for Project / Inspector / Output, and Command+Shift+0 to restore the layout. With
+full keyboard navigation enabled in the OS, Tab moves through controls; Space
+activates a focused button, and arrow keys navigate the output tabs. Hiding a pane
+moves focus to its toolbar button. Qt's Basic controls style and a shared dark
+palette keep rendering consistent between tests and the app.
+
 ## Verification
 
 ```sh
@@ -52,6 +70,23 @@ renderer and Basic controls style. It requires a loaded window and a rendered
 frame, fails on loading/rendering errors, and has a 10-second internal deadline
 and a 20-second CTest limit. Running `--smoke-test` directly also exercises the
 native platform/graphics path and exits after its first frame.
+
+The `qt_shell` test uses real mouse and keyboard events against the source QML. It
+checks navigation, tabs, pane visibility and focus, splitter dragging, layout
+restoration, constrained geometry and disconnected/missing-adapter states. QML
+warnings fail the test. The embedded module is independently covered by
+`qt_qml_smoke`. To capture the native shell at its default and minimum sizes, with
+hidden panes and with a missing adapter:
+
+```sh
+VB_QT_SCREENSHOT_DIR="$PWD/build/qt/shell-captures" ./build/qt/src/qt/test_qt_shell
+```
+
+Add `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for display-free captures.
+Screenshots are review artifacts; tests check geometry and behavior rather than
+platform-dependent pixel goldens. Shell actions do not call the adapter's input or
+refresh methods. M2 changes no simulation execution path, so the P3/M1 performance
+baselines remain applicable; it makes no new simulation-throughput claim.
 
 To check dependency isolation on a machine with Qt installed:
 
