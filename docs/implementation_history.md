@@ -67,3 +67,17 @@
 - Verifier: fresh PASS; independent 19/19 plus broken-import, wrong-root, early-exit
   and no-render deadline checks. Callback lifetime refinement reverified; no blockers.
 - Commit: 9f7224e.
+
+## M1 — BoardModel adapter and presentation models
+- Added a C++-owned, GUI-thread adapter with four cached read-only board models,
+  validated switch/button inputs and a typed QML boundary. Refresh advances no time.
+- Decision: fixed borrowed BoardModel lifetime, child-owned models; stage all caches
+  before precise notifications, reject reentrant/cross-thread writes. No controller yet.
+- Tests: combined suite 21/21; Qt-free headless 18/18; Qt-only Release ASan/UBSan
+  checks 3/3; QML lint/native Qt/four legacy finite runs pass. Independent pin oracles
+  and real counter arithmetic/log comparisons preserve the unchanged backend/goldens.
+- Performance: paired counter 21.754 Mcycles/s direct vs 21.599 with refresh/100k
+  cycles (~0.7% lower; small sample, no rendering). Reproduction/raw samples recorded.
+- Verifier: fresh PASS; independent full suite and ownership/GC/teardown/thread/
+  notification probes. Nonblocking QtTest GUI-metatype diagnostic documented.
+- Commit: 5834064.

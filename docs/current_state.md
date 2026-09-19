@@ -1,39 +1,43 @@
 # Current state
 
-- Current milestone: M0 complete, independently verified and committed. Stop before M1.
-- Completed: P0 planning/baseline, P1 correctness audit, P2 independent challenge,
-  P3 fixes/verification/invariants/performance; M0 optional Qt infrastructure.
-  Historical 1.1–1.6 intact.
-- Current architecture: per-design VerilatorEngine/PinBinding → BoardModel → legacy
-  ImGui/SDL2/Metal. Optional Qt Quick launcher embeds a QML window; it links only Qt
-  and has no simulation objects. Legacy frontend remains available.
-- Target architecture: Verilator/future NetlistEngine → SimEngine → BoardModel →
-  thin Qt adapter → QML. Engine objects and peripheral timing never enter QML.
-- Decisions: VB_BUILD_QT_GUI defaults OFF, independent of VB_BUILD_GUI (default ON).
-  Qt ≥6.5 Core/Gui/Quick/Qml/QuickControls2; tested Qt 6.11.2 on macOS arm64.
-  Qt discovery/autogen stay local to src/qt. Development builds use installed Qt;
-  standalone packaging is deferred. Build/run instructions: qt_build.md.
-- M0 tests: combined frontend build 19/19; legacy-only 18/18 with Qt lookup disabled;
-  clean headless 18/18 with Qt/SDL2 lookup disabled; Qt-only build/render smoke passes.
-  QML lint, native macOS Qt first-frame smoke, all four legacy finite screenshot runs
-  pass. All 10 backend compiler commands match between Qt-enabled/headless builds.
-- Fresh M0 verifier: PASS, no outstanding issues. Independent full suite 19/19;
-  negative import/root/early-quit/no-render deadline checks fail as intended.
-- Simulator: no backend, RTL, existing test, invariant or golden changes in M0.
-  P3 clean headless Release ASan/UBSan 18/18 and two fresh PASS reviews remain valid.
-- Performance: P3 counter 21.838, stopwatch 16.520, UART 18.590, VGA 14.910 Mcycles/s;
-  VGA 8.875 frames/s. No M0 simulation benchmark: launcher has no simulation path,
-  backend code/flags unchanged. Method/raw samples: pre_migration_performance.md/.csv.
-- Known blockers: none. Qt window has only an empty
-  state, no board adapter/controls yet. Existing limits: two-state/single master clock,
-  literal XDC, fixed UART/VGA, grid sampling, unbounded UART/log collections,
-  single-threaded engine/board access; real-time performance guide remains unmet.
-- Important invariants: 10 ns/master cycle; low/high evaluation; step(0) no-op;
-  poke/peek no time advance; tick(0) applies due RX; absolute 1000-cycle observations;
-  exact RX edges; inclusive 2M-cycle display persistence; chunk invariance;
-  v2 log order/goldens; RGB888 top-origin VGA and frame-1 stamp 4,928,013.
-- Next concrete tasks (M1): decide QObject/thread ownership; add a thin BoardModel adapter with
-  focused models and headless tests. Board-level reset/inspection APIs remain open.
-- M0 implementation commit: 9f7224e, "feat: add optional Qt Quick frontend infrastructure".
-- Latest commit: HEAD, "docs: record verified Qt infrastructure milestone".
-  Resolve its hash with git rev-parse HEAD; milestone hashes are in implementation_history.md.
+- Current milestone: M1 complete, independently verified and committed. Stop before M2.
+- Completed: P0–P3 audit/fixes/invariants/performance, M0 optional Qt infrastructure.
+  Historical 1.1–1.6 intact; M1 adds the thin Qt adapter and fixed presentation models.
+- Current architecture: SimEngine → BoardModel → BoardAdapter → cached Qt models →
+  QML. Legacy ImGui/SDL2/Metal still uses BoardModel directly. The Qt launcher injects
+  a disconnected typed adapter; design loading and interactive controls are deferred.
+- Ownership: C++ owns simulation engine, BoardModel, adapter, then QML engine;
+  reverse destruction order. Adapter borrows a fixed nullable BoardModel; child
+  models belong to adapter. All remain on the construction/GUI thread; no concurrency.
+- Qt boundary: only switch/button inputs are invokable; model roles are read-only.
+  C++ refresh stages every cache before notifying changed rows/roles; reads/refresh
+  never advance cycles or call tick(0). LED reads may settle pending inputs through
+  BoardModel. Reentrant writes/refreshes and wrong-thread mutations are rejected.
+- Build: VB_BUILD_QT_GUI defaults OFF, independent of legacy VB_BUILD_GUI (ON).
+  Qt ≥6.5, tested 6.11.2; Core/Gui/Quick/Qml/QuickControls2 and Test for adapter tests.
+  Qt discovery/autogen remain local. See qt_build.md and qt_adapter.md.
+- M1 tests: combined frontends 21/21; Qt/SDL2-disabled headless 18/18;
+  Qt-only Release ASan/UBSan 3/3 Qt checks. QML lint, native Qt first-frame smoke and
+  all four legacy finite runs pass. All 10 backend compiler commands match with Qt
+  enabled/disabled. Analytic models and real counter verify values/logs/cadence.
+- Fresh M1 verifier: PASS; independent 21/21, QML lint, garbage collection/ownership,
+  child teardown, moved-thread rejection and grouped-notification probes pass.
+- Simulator: backend, RTL, existing tests, invariant document and goldens unchanged.
+  Frozen semantics: 10 ns low/high cycles; step(0) no-op; zero-time poke/peek;
+  absolute 1000-cycle observations; exact RX; inclusive 2M-cycle digit persistence;
+  chunk invariance; v2 logs; RGB888 top-origin VGA with frame-1 stamp 4,928,013.
+- Performance: paired counter median 21.754 Mcycles/s direct, 21.599 with one refresh
+  per 100k cycles (~0.7% lower, small sample/noise not isolated). No rendering in this
+  measurement. Reproduction/raw data: qt_adapter.md / qt_adapter_performance.csv.
+  P3 representative baselines remain in pre_migration_performance.md/.csv.
+- Known blockers: none. QtTest 6.11.2 emits a benign GUI-metatype diagnostic in the
+  QCore-only model tester; independent backtrace and details in qt_adapter.md.
+  Qt has no loaded design, board visuals,
+  scheduling/reset, UART/VGA panels or inspector/log models yet. Standalone packaging
+  deferred. Existing backend limits/real-time shortfall remain documented.
+- Next concrete tasks (M2): introduce the IDE shell, navigation, board/inspector and
+  bottom-panel areas with functional controls and honest empty states.
+  Worker scheduling and board reset/inspection APIs remain later decisions.
+- M1 implementation commit: 5834064, "feat: add tested Qt adapter and board presentation models".
+- Latest commit: HEAD, "docs: record verified Qt adapter milestone".
+  Resolve with git rev-parse HEAD; milestone hashes are in implementation_history.md.
