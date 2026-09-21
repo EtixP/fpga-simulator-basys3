@@ -97,3 +97,23 @@
 - Verifier: fresh PASS, no issues; independent 22/22, lint, 2×-scale shell 10/10,
   32 extreme geometries / 256 page-tab states and maximum-to-minimum resize pass.
 - Commit: 853198d.
+
+## M3 — Interactive Qt virtual board
+- Added reusable switches, LEDs, momentary buttons and raw-mask seven-segment
+  digits, physical ordering and keyboard-accessible scrolling. Launcher shows a
+  disabled preview; connected counter/stopwatch fixtures verify real RTL inputs.
+- Decision: cached models own visuals; no QML stepping/decoding/persistence.
+  Release only accepted UI-owned holds on cancellation/focus/lifetime changes;
+  regression fixed stale ownership after external release/reassertion. Application
+  loading/control and rendered throughput remain M4; P3/M1 performance references
+  apply without claiming a new rendering cadence or simulation speed.
+- Tests: combined 25/25; Qt/SDL2-free headless 18/18; Qt-only Release ASan/UBSan
+  7/7; clean lint/native embedded smoke. Analytical widgets 15/15 native/offscreen,
+  real counter 5/5 and stopwatch 3/3 native; unchanged 300M-cycle golden and 01.41
+  masks/placement verified. Backend, invariants and existing goldens untouched.
+- Verifier: PASS; fresh full-suite/accessibility review and independent native,
+  adapter-replacement, external-ownership and synchronous-hide probes pass. One
+  concurrent native golden mismatch did not recur in isolated runs; forced focus
+  loss reproduces the symptom (original cause unconfirmed). Foreground isolation
+  is documented; CTest uses offscreen isolation. No remaining blocking findings.
+- Commit: 7437a04.
