@@ -7,18 +7,18 @@ adapter → QML. QML must never obtain engine objects or peripheral timing logic
 Preserve C++20 abstractions, cycle semantics, byte/pixel outputs and existing goldens.
 
 ## Pre-migration milestones (completed)
-- P0: inspect repository; build legacy GUI and run full baseline suite; record plan/state.
+- P0: inspect repository; build legacy GUI and record the baseline test results.
 - P1: code-and-test audit of engine, board/peripherals, XDC, integration and frontend
   boundaries; classify coverage and add independent adversarial regression cases.
-- P2: fresh read-only verifier challenges audit conclusions and runs additional checks.
+- P2: independently review audit conclusions and run additional checks.
 - P3: reproduce and fix confirmed bugs in small backend-only changes, independently
-  verify, freeze invariants, measure counter/stopwatch/UART/VGA performance, commit.
+  verify, freeze invariants and measure counter/stopwatch/UART/VGA performance.
 
 Migration gate: full existing and audit suites pass; confirmed correctness bugs are
 resolved; independent review has no blockers; invariants and reproducible performance
 baseline exist. No Qt implementation in P0–P3. Unmet requirements keep the gate closed.
 
-## Qt milestones (one at a time)
+## Qt milestones
 | Milestone | Scope | Acceptance |
 |---|---|---|
 | M0 | Qt 6 infrastructure alongside legacy GUI; VB_BUILD_QT_GUI | Both optional frontend builds and existing suite pass |
@@ -31,9 +31,9 @@ baseline exist. No Qt implementation in P0–P3. Unmet requirements keep the gat
 | M7 | Batched inspector/log models, filtering, autoscroll | Stable values/order; no excessive per-signal QML calls |
 | M8 | Layout/theme/status polish, screenshots, parity then legacy removal | Independent parity comparison, two removal reviewers, clean build/full suite |
 
-Every milestone: build, relevant and full tests, invariants/performance comparison,
-fresh skeptical verifier, resolve/reverify blockers, separate commit, update state/history.
-Never weaken tests or regenerate golden data merely to hide failures.
+Each milestone requires a successful build, relevant and full tests, invariant and
+performance comparisons, independent review, and resolution of blocking findings.
+Existing goldens remain the acceptance baseline.
 
 ## Dependencies and unresolved decisions
 - Existing Verilator 5.050, CMake, C++20; legacy SDL2/Metal remains until parity.

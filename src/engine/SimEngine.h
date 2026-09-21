@@ -33,7 +33,7 @@ struct SignalInfo {
       : std::nullopt;
 };
 
-// The one abstraction everything goes through (see CLAUDE.md). Board models,
+// The one abstraction everything goes through. Board models,
 // GUI, CLI, and tests never touch Verilator or the netlist simulator directly.
 //
 // t=0 contract (R6 — both engines MUST implement this identically or the

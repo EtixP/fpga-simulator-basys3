@@ -150,8 +150,8 @@ int main(int argc, char** argv) {
 
   // --- R4 pattern: two live engines, the OLDER one destroyed first ---------
   // Verilator's scope teardown resolves the thread-local context; without the
-  // engine's bindThreadContext() discipline this ordering corrupts/crashes
-  // (see CLAUDE.md decision log). The survivor must keep simulating.
+  // engine's bindThreadContext() discipline this ordering corrupts/crashes.
+  // The survivor must keep simulating.
   {
     auto a = makeVerilatorEngine<Vcounter>({.topModule = "counter"});
     auto b = makeVerilatorEngine<Vcounter>({.topModule = "counter"});

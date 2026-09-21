@@ -17,7 +17,7 @@ later milestones. The existing ImGui demos remain available for interactive use.
 
 M3 verification: **25/25 full-suite checks**, **18/18 headless checks** and
 **7/7 Qt sanitizer checks** passed, with independent review.
-[Verification details](docs/current_state.md) · [Roadmap](docs/migration_plan.md)
+[Verification details](docs/qt_board.md#verification) · [Roadmap](docs/migration_plan.md)
 
 ## Screenshots
 

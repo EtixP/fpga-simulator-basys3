@@ -1,4 +1,4 @@
-# Conventions (see CLAUDE.md decision log):
+# Test conventions:
 #  - exactly ONE verilate()d library per test executable — verilate() compiles
 #    the Verilator runtime into its target, so linking two duplicates it
 #  - test data locations are passed as absolute paths via add_test arguments,

@@ -4,3 +4,12 @@ build/
 *.bmp
 imgui.ini
 .DS_Store
+
+# Local agent instructions, settings and session notes
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+.claude/
+.codex/
+/docs/current_state.md
+/docs/implementation_history.md

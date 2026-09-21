@@ -8,7 +8,7 @@
 //          pulse is (correctly) ignored.
 //   led  : running indicator.
 //
-// Counter idiom (see CLAUDE.md decision log): full 32-bit counters compared
+// Counter idiom: full 32-bit counters compared
 // directly against integer localparams with sized increments — this is the
 // verified -Wall-clean Verilog-2005 form; synthesis trims the dead upper
 // bits. Registers carry no declaration initializers (PROCASSINIT).

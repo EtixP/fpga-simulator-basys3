@@ -57,7 +57,7 @@ private:
 }  // namespace detail
 
 // Phase-1 SimEngine over a Verilator-compiled design. Requirements on the
-// verilation (enforced where detectable, see CLAUDE.md decision log):
+// verilation (enforced where detectable; see docs/versions.md):
 //   --public-flat-rw   mandatory — signal access goes through the runtime
 //                      symbol table, which is EMPTY without it
 //   --trace-vcd        for trace() support

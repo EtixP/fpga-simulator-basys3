@@ -1,5 +1,5 @@
 # One verilated static library per example design; each executable links
-# exactly one of these (see CLAUDE.md decision log).
+# exactly one of these to avoid duplicate Verilator runtimes.
 #
 # OPT_FAST/OPT_GLOBAL -O2: generated model code is never debugged at source
 # level, and the default (empty) build type would otherwise run it at -O0 —

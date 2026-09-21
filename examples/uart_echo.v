@@ -4,7 +4,7 @@
 //
 //   btnC : synchronous reset (R6 convention).
 //
-// Counter idiom per the CLAUDE.md decision log: 32-bit counters compared
+// Counter idiom: 32-bit counters compared
 // against integer localparams, sized increments, no declaration initializers.
 module uart_echo #(
   parameter integer BIT = 10417        // 100 MHz / 9600 baud

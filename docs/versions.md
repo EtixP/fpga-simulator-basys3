@@ -1,6 +1,6 @@
 # Pinned toolchain versions
 
-Recorded when bumping (CLAUDE.md, CI section). The future GitHub Actions
+Update this record when bumping dependencies. The future GitHub Actions
 workflow must pin these same versions.
 
 | Tool | Version | Source | Notes |
@@ -19,7 +19,7 @@ workflow must pin these same versions.
 
 `--public-flat-rw --trace-vcd --timescale 1ns/1ns` (+ `-Wall` for shipped
 examples only — never for user designs, whose diagnostics pass through
-verbatim per R5).
+verbatim).
 
 - `--public-flat-rw` is mandatory: VerilatorEngine resolves signals through
   the runtime symbol table, which is empty without it. Known cost: every
@@ -38,7 +38,7 @@ With the sim_* libraries at OPT_FAST/OPT_GLOBAL -O2: ~20 Mcycles/s raw
 stepping through VerilatorEngine (two evals/cycle) on the stopwatch;
 ~15.7 Mcycles/s effective under golden-test conditions (1000-cycle grid
 sampling + structured logging). That is **0.2x real-time** for the 100 MHz
-board clock — R1's "counter/stopwatch examples should exceed real-time" guide
+board clock — the "counter/stopwatch examples should exceed real-time" performance guide
 is NOT currently met; the phase-2 speed indicator ("sim speed: N MHz — 0.NNx
 real-time") starts from these numbers. Without the -O2 verilate flags the
 same run is ~3.3 Mcycles/s (~90 s golden test) — do not remove them.
@@ -69,7 +69,7 @@ scope (poking it would be version-fragile internals-reaching). So milestone
 Selective `public_flat_rw` metacomments (~1.4x) remain the one clean lever,
 but they help only OUR annotated demo RTL, not a user's standard VGA design —
 so they were NOT taken (a margin true for the screenshot and false for users
-is not a real margin). See the CLAUDE.md decision log.
+is not a real margin).
 
 ## VGA frame-rate baseline (milestone 1.6, measured 2026-07-16, M-series Mac)
 
@@ -82,8 +82,8 @@ Measured through the exact BoardModel::tick VGA path (3 warmed runs):
 | full tick (grid+UART split + stepCapture + assembler) | ~15.0 | ~9.0 |
 | integrated GUI (with SDL/Metal present) | — | ~8.6 |
 
-The frame-producing path is stepCapture-bound at **~9 fps** — JUST UNDER R1's
-">= 10 simulated fps" VGA guide on this hardware. Per R1 that is a guide, not
+The frame-producing path is stepCapture-bound at **~9 fps** — JUST UNDER the
+">= 10 simulated fps" VGA performance guide on this hardware. That is a guide, not
 a promise: the demo renders frame-accurately and the honest speed banner
 shows the real per-frame fps and multiplier (never smoothed), so a run under
 load reads e.g. "8.6 fps — 0.15x real-time" truthfully. The milestone's

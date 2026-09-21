@@ -51,6 +51,10 @@ remain the baseline; rendered simulation throughput belongs to M4's controller.
 
 ## Verification
 
+M3 passed 25/25 checks with both frontends built, 18/18 with both frontends
+disabled, and 7/7 Qt checks under Release ASan/UBSan. QML lint, native rendering
+and independent review also passed. Simulator code and existing goldens were unchanged.
+
 With the optional Qt build enabled, run:
 
 ```sh
