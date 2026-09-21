@@ -17,7 +17,8 @@ qt_add_qml_module(virtualbasys_qt
   URI VirtualBasys
   VERSION 1.0
   IMPORT_PATH "${CMAKE_CURRENT_BINARY_DIR}"
-  QML_FILES Main.qml ShellPane.qml EmptyState.qml
+  QML_FILES Main.qml ShellPane.qml EmptyState.qml BoardView.qml
+            BoardSwitch.qml BoardLed.qml BoardButton.qml SevenSegmentDigit.qml
 )
 target_link_libraries(virtualbasys_qt PRIVATE
   Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::QuickControls2
@@ -51,6 +52,38 @@ set_tests_properties(qt_shell PROPERTIES
   ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
   TIMEOUT 60
 )
+
+qt_add_executable(test_qt_board_widgets "${CMAKE_SOURCE_DIR}/tests/test_qt_board_widgets.cpp")
+target_compile_definitions(test_qt_board_widgets PRIVATE
+  VB_QT_QML_DIR="${CMAKE_CURRENT_SOURCE_DIR}" VB_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+)
+target_link_libraries(test_qt_board_widgets PRIVATE
+  vb_qt_adapter vb_qt_adapterplugin vb_board vb_engine
+  Qt6::Test Qt6::Quick Qt6::Qml Qt6::QuickControls2
+)
+add_test(NAME qt_board_widgets COMMAND test_qt_board_widgets)
+set_tests_properties(qt_board_widgets PROPERTIES
+  ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
+  TIMEOUT 90
+)
+
+# Keep one Verilated runtime per executable while exercising the same QML board.
+foreach(design counter stopwatch)
+  qt_add_executable(test_qt_board_${design}_ui
+    "${CMAKE_SOURCE_DIR}/tests/test_qt_board_${design}_ui.cpp")
+  target_compile_definitions(test_qt_board_${design}_ui PRIVATE
+    VB_QT_QML_DIR="${CMAKE_CURRENT_SOURCE_DIR}" VB_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+  )
+  target_link_libraries(test_qt_board_${design}_ui PRIVATE
+    vb_qt_adapter vb_qt_adapterplugin vb_board vb_engine sim_${design}
+    Qt6::Test Qt6::Quick Qt6::Qml Qt6::QuickControls2
+  )
+  add_test(NAME qt_board_${design}_ui COMMAND test_qt_board_${design}_ui)
+  set_tests_properties(qt_board_${design}_ui PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
+    TIMEOUT 180
+  )
+endforeach()
 
 # Exercise embedded QML/imports and an actual rendered frame without a display.
 add_test(NAME qt_qml_smoke COMMAND virtualbasys_qt --smoke-test)

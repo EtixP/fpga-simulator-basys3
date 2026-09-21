@@ -86,6 +86,11 @@ private:
         auto* workspace = item("workspacePane");
         if (!workspace->isVisible()) return false;
         const auto center = bounds(workspace);
+        // M3's board keeps usable control sizes in a scrollable viewport. The
+        // viewport must fit the shell; its content may intentionally extend past it.
+        auto* boardViewport = item("boardFlickable");
+        if (boardViewport && boardViewport->isVisible() &&
+            !center.adjusted(-1, -1, 1, 1).contains(bounds(boardViewport))) return false;
         if (item("projectPane")->isVisible() &&
             bounds(item("projectPane")).right() > center.left() + 1) return false;
         if (item("inspectorPane")->isVisible() &&
@@ -110,6 +115,7 @@ private:
             if (!child->isVisible() || text.isEmpty()) continue;
             const auto rectangle = bounds(child);
             for (auto* ancestor = child->parentItem(); ancestor; ancestor = ancestor->parentItem()) {
+                if (ancestor == item("boardFlickable")) break;
                 if ((ancestor == pane || ancestor->clip()) &&
                     !bounds(ancestor).adjusted(-1, -1, 1, 1).contains(rectangle))
                     return QStringLiteral("Clipped text/control: %1").arg(text);
@@ -300,7 +306,7 @@ private slots:
         QVERIFY(click("restoreLayoutButton"));
         QTRY_COMPARE(qRound(item("projectPane")->width()), 220);
         QTRY_COMPARE(qRound(item("inspectorPane")->width()), 260);
-        QTRY_COMPARE(qRound(item("outputPane")->height()), 232);
+        QTRY_COMPARE(qRound(item("outputPane")->height()), 170);
         QTRY_COMPARE(window_->property("workspaceIndex").toInt(), 0);
         QTRY_COMPARE(window_->property("outputIndex").toInt(), 0);
         QTRY_VERIFY(layoutIsContained());

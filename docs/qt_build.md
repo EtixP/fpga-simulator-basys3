@@ -1,10 +1,10 @@
 # Qt frontend development
 
-The optional Qt Quick frontend now provides the M2 application shell: project
-navigation, a board workspace, inspector and tabbed output panel. Its layout controls
-work without a loaded design. M1 supplies the tested BoardModel adapter and models;
-interactive board controls and simulation integration follow in later milestones.
-The existing ImGui demos remain available.
+The optional Qt Quick frontend provides the IDE shell and M3 virtual board: project
+navigation, switches, LEDs, buttons, seven-segment display, inspector and tabbed
+output panel. The launcher shows a disabled board preview until design loading and
+simulation control are integrated. Connected widget tests use the M1 adapter and
+real RTL examples; the existing ImGui demos remain available for interactive runs.
 
 ## Dependencies and build
 
@@ -49,6 +49,8 @@ shows all panes and returns to Board / Terminal. Layout changes are session-only
 Board and Overview select the central workspace; Terminal, UART, Logs and Waveforms
 select the bottom panel. These panels explain their current empty state. Design
 loading, command execution and simulation controls are not yet available.
+Board behavior, input ownership and connected-example tests are described in
+[qt_board.md](qt_board.md).
 
 Keyboard shortcuts are Command+Shift+1 / 2 / 3 on macOS (Control+Shift elsewhere)
 for Project / Inspector / Output, and Command+Shift+0 to restore the layout. With
@@ -84,9 +86,11 @@ VB_QT_SCREENSHOT_DIR="$PWD/build/qt/shell-captures" ./build/qt/src/qt/test_qt_sh
 
 Add `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for display-free captures.
 Screenshots are review artifacts; tests check geometry and behavior rather than
-platform-dependent pixel goldens. Shell actions do not call the adapter's input or
-refresh methods. M2 changes no simulation execution path, so the P3/M1 performance
-baselines remain applicable; it makes no new simulation-throughput claim.
+platform-dependent pixel goldens. Layout/navigation advance no simulation time;
+leaving the board or changing focus may release a held momentary input through the
+adapter. Bound board controls use its validated input API. No simulation execution
+loop exists yet, so the P3/M1 performance baselines remain
+the reference. Rendered simulation throughput will be measured with M4's controller.
 
 To check dependency isolation on a machine with Qt installed:
 

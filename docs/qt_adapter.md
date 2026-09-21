@@ -3,8 +3,9 @@
 M1 introduces the `VirtualBasys.Board` QML module. Its `BoardAdapter`,
 `BoardIoModel` and `SevenSegmentModel` types are uncreatable from QML: C++ supplies
 the adapter through the root window's required, typed `board` property. The
-launcher currently supplies a disconnected adapter; design loading and controls
-belong to later milestones.
+launcher currently supplies a disconnected adapter. M3 supplies tested board
+widgets and a disabled preview; design loading and simulation control remain later
+work. See [qt_board.md](qt_board.md).
 
 ## Ownership and threading
 

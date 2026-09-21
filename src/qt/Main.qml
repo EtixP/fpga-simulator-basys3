@@ -74,7 +74,7 @@ ApplicationWindow {
             outputAction.checked = true
             projectPane.SplitView.preferredWidth = 220
             inspectorPane.SplitView.preferredWidth = 260
-            outputPane.SplitView.preferredHeight = 232
+            outputPane.SplitView.preferredHeight = 170
             window.workspaceIndex = 0
             window.outputIndex = 0
             restoreButton.forceActiveFocus()
@@ -224,20 +224,24 @@ ApplicationWindow {
                 title: window.workspaceIndex === 0 ? qsTr("BOARD") : qsTr("OVERVIEW")
                 paneColor: window.palette.window
                 EmptyState {
+                    visible: window.boardUnavailable || window.workspaceIndex === 1
                     anchors.fill: parent
                     badge: window.workspaceIndex === 0 ? "B3" : "VB"
-                    headingObjectName: "workspaceTitle"
-                    detailObjectName: "workspaceDetail"
+                    headingObjectName: visible ? "workspaceTitle" : ""
+                    detailObjectName: visible ? "workspaceDetail" : ""
                     heading: window.boardUnavailable ? qsTr("Board connection unavailable")
-                        : window.workspaceIndex === 1 ? qsTr("Your FPGA workspace")
-                        : window.boardConnected ? qsTr("Board connected") : qsTr("No design loaded")
+                        : qsTr("Your FPGA workspace")
                     detail: window.boardUnavailable
                         ? qsTr("The board connection could not be initialized. Restart VirtualBasys to try again.")
-                        : window.workspaceIndex === 1
-                          ? qsTr("Arrange the project, board, inspector and output panes to suit your workspace. Use Restore layout to return to the default arrangement.")
-                          : window.boardConnected
-                            ? qsTr("The board is connected. Interactive board controls are not available in this version.")
-                            : qsTr("The virtual board will appear here. Design loading and interactive board controls are not available in this version.")
+                        : qsTr("Arrange the project, board, inspector and output panes to suit your workspace. Use Restore layout to return to the default arrangement.")
+                }
+                BoardView {
+                    objectName: "boardView"
+                    anchors.fill: parent
+                    visible: !window.boardUnavailable && window.workspaceIndex === 0
+                    board: window.board
+                    headingObjectName: visible ? "workspaceTitle" : ""
+                    detailObjectName: visible ? "workspaceDetail" : ""
                 }
             }
 
@@ -262,7 +266,7 @@ ApplicationWindow {
             id: outputPane
             objectName: "outputPane"
             visible: outputAction.checked
-            SplitView.preferredHeight: 232
+            SplitView.preferredHeight: 170
             SplitView.minimumHeight: 170
             SplitView.maximumHeight: 400
             color: window.palette.base
