@@ -61,5 +61,6 @@
 - M3 implementation commit: 7437a04, "feat: add interactive Qt Basys board components".
 - Commit attribution: human Git identity only; historical AI coauthor trailers
   removed, with future commit/session attribution disabled in .claude/settings.json.
-- Latest commit: HEAD, "docs: record verified M3 board milestone".
+- README.md summarizes M3 progress, preview limitations and captured Qt screenshots.
+- Latest commit: HEAD, "docs: add concise project README and Qt screenshots".
   Resolve with git rev-parse HEAD; milestone hashes are in implementation_history.md.
