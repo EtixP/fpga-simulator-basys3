@@ -9,12 +9,14 @@ ApplicationWindow {
     id: window
     objectName: "shellWindow"
     required property BoardAdapter board
+    property SimulationController controller: null
     property int workspaceIndex: 0
     property int outputIndex: 0
     readonly property bool boardConnected: board !== null && board.connected
     readonly property bool boardUnavailable: board === null
+    readonly property bool liveSimulation: controller !== null && controller.connected
     width: 1280
-    height: 820
+    height: liveSimulation ? 880 : 820
     minimumWidth: 960
     minimumHeight: 640
     visible: true
@@ -82,10 +84,14 @@ ApplicationWindow {
     }
 
     header: ToolBar {
-        height: 56
+        height: 56 + (simulationTools.visible ? simulationTools.implicitHeight : 0)
         background: Rectangle { color: window.palette.alternateBase }
         RowLayout {
-            anchors.fill: parent
+            id: applicationTools
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: 56
             anchors.leftMargin: 18
             anchors.rightMargin: 12
             spacing: 8
@@ -135,6 +141,15 @@ ApplicationWindow {
                 focusPolicy: Qt.StrongFocus
             }
         }
+        SimulationToolbar {
+            id: simulationTools
+            objectName: "simulationToolbar"
+            anchors.top: applicationTools.bottom
+            width: parent.width
+            height: implicitHeight
+            visible: window.liveSimulation
+            controller: window.controller
+        }
     }
 
     SplitView {
@@ -173,15 +188,20 @@ ApplicationWindow {
                     anchors.margins: 12
                     spacing: 8
                     Label {
+                        objectName: "projectDesignName"
                         Layout.fillWidth: true
                         Layout.topMargin: 6
-                        text: qsTr("No project open")
+                        text: window.liveSimulation ? window.controller.designName : qsTr("No project open")
                         font.weight: Font.DemiBold
                         wrapMode: Text.WordWrap
                     }
                     Label {
+                        objectName: "projectDesignFiles"
                         Layout.fillWidth: true
-                        text: qsTr("Design files will appear here when project loading is available.")
+                        text: window.liveSimulation
+                            ? "examples/" + window.controller.designName.toLowerCase() + ".v\nexamples/"
+                                + window.controller.designName.toLowerCase() + ".xdc"
+                            : qsTr("Design files will appear here when project loading is available.")
                         color: window.palette.placeholderText
                         wrapMode: Text.WordWrap
                         lineHeight: 1.25
@@ -302,11 +322,11 @@ ApplicationWindow {
                     compact: true
                     headingObjectName: "outputTitle"
                     detailObjectName: "outputDetail"
-                    heading: [qsTr("No terminal session"), qsTr("No UART connection"),
-                              qsTr("No simulation log"), qsTr("No waveform open")][window.outputIndex]
+                    heading: [qsTr("No terminal session"), qsTr("UART terminal unavailable"),
+                              qsTr("Log view unavailable"), qsTr("No waveform open")][window.outputIndex]
                     detail: [qsTr("Command execution is not available in this version."),
-                             qsTr("UART traffic and send controls will appear here when a simulation is connected."),
-                             qsTr("Simulation events will appear here when log collection is available."),
+                             qsTr("UART traffic and send controls are not available in this version."),
+                             qsTr("Simulation logs are not displayed in this version."),
                              qsTr("Waveform viewing is not available in this version.")][window.outputIndex]
                 }
             }
@@ -329,13 +349,42 @@ ApplicationWindow {
                        ? window.palette.highlight : window.palette.placeholderText
             }
             Label {
-                text: window.boardUnavailable ? qsTr("Board unavailable") : window.boardConnected
+                objectName: "simulationStatus"
+                text: window.liveSimulation
+                    ? window.controller.designName + " · " + (window.controller.running ? qsTr("Running") : qsTr("Paused"))
+                    : window.boardUnavailable ? qsTr("Board unavailable") : window.boardConnected
                       ? qsTr("Board connected") : qsTr("No design loaded")
                 font.pixelSize: 11
                 color: window.palette.placeholderText
             }
+            Label {
+                objectName: "simulationCycles"
+                visible: window.liveSimulation
+                Layout.leftMargin: 12
+                text: window.liveSimulation ? qsTr("%1 cycles").arg(window.controller.cycleText) : ""
+                font.pixelSize: 11
+                color: window.palette.text
+            }
+            Label {
+                objectName: "simulationTime"
+                visible: window.liveSimulation
+                Layout.leftMargin: 8
+                text: window.liveSimulation ? window.controller.virtualTimeText : ""
+                font.pixelSize: 11
+                color: window.palette.text
+            }
             Item { Layout.fillWidth: true }
-            Label { text: qsTr("VirtualBasys"); font.pixelSize: 11; color: window.palette.placeholderText }
+            Label {
+                objectName: "simulationSpeed"
+                text: !window.liveSimulation ? qsTr("VirtualBasys")
+                    : !window.controller.running ? qsTr("Speed —")
+                    : !window.controller.speedAvailable ? qsTr("Measuring speed…")
+                    : qsTr("%1 MHz · %2× real-time")
+                        .arg((window.controller.cyclesPerSecond / 1000000).toFixed(2))
+                        .arg(window.controller.realtimeMultiplier.toFixed(2))
+                font.pixelSize: 11
+                color: window.palette.placeholderText
+            }
         }
     }
 }

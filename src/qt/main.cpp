@@ -1,7 +1,12 @@
-#include "qt/BoardAdapter.h"
+#include VB_MODEL_HEADER
+#include "board/BoardModel.h"
+#include "constraints/Xdc.h"
+#include "engine/VerilatorEngine.h"
+#include "qt/SimulationController.h"
 
 #include <QCommandLineParser>
 #include <QDebug>
+#include <QFile>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQuickWindow>
@@ -26,16 +31,47 @@ int main(int argc, char* argv[]) {
         QStringLiteral("smoke-test"),
         QStringLiteral("Exit after the first rendered frame; fail after 10 seconds."));
     parser.addOption(smokeOption);
+    const QCommandLineOption previewOption(QStringLiteral("preview"),
+        QStringLiteral("Show the disabled board preview without loading the built-in example."));
+    const QCommandLineOption realtimeOption(QStringLiteral("realtime"),
+        QStringLiteral("Select best-effort 1x pacing (starts paused)."));
+    parser.addOption(previewOption);
+    parser.addOption(realtimeOption);
     parser.process(app);
     const bool smokeTest = parser.isSet(smokeOption);
 
-    // The application owns the adapter; QML is destroyed before it. No design
-    // is loaded yet. A future composition root must keep BoardModel alive longer.
-    vb::qt::BoardAdapter boardAdapter;
+    // Each launcher links one Verilated design. The resource-backed constraints
+    // work from any directory; no source-tree path is needed at runtime.
+    std::unique_ptr<vb::SimEngine> simulator;
+    std::unique_ptr<vb::BoardModel> board;
+    if (!parser.isSet(previewOption)) {
+        QFile constraints(QStringLiteral(":/examples/" VB_DESIGN ".xdc"));
+        if (!constraints.open(QIODevice::ReadOnly)) {
+            qCritical() << "Cannot open the built-in example constraints:" << constraints.errorString();
+            return EXIT_FAILURE;
+        }
+        try {
+            simulator = vb::makeVerilatorEngine<VB_MODEL>({.topModule = VB_DESIGN});
+            const auto xdc = vb::parseXdc(constraints.readAll().toStdString());
+            board = std::make_unique<vb::BoardModel>(
+                *simulator, vb::PinBinding::bind(xdc, *simulator));
+        } catch (const std::exception& error) {
+            qCritical() << "Cannot load the built-in example:" << error.what();
+            return EXIT_FAILURE;
+        }
+    }
+    // Destruction reverses this order: QML -> controller -> adapter -> board ->
+    // engine. Loading/rendering starts paused at cycle zero and never clocks RTL.
+    vb::qt::BoardAdapter boardAdapter(board.get());
+    vb::qt::SimulationController controller(boardAdapter, QStringLiteral(VB_DESIGN_TITLE));
+    controller.setRealtime(parser.isSet(realtimeOption));
     QQmlEngine::setObjectOwnership(&boardAdapter, QQmlEngine::CppOwnership);
+    QQmlEngine::setObjectOwnership(&controller, QQmlEngine::CppOwnership);
     QQmlApplicationEngine engine;
     engine.setInitialProperties({{QStringLiteral("board"),
-                                 QVariant::fromValue(&boardAdapter)}});
+                                 QVariant::fromValue(&boardAdapter)},
+                                {QStringLiteral("controller"),
+                                 QVariant::fromValue(&controller)}});
     engine.loadFromModule("VirtualBasys", "Main");
     if (engine.rootObjects().isEmpty()) {
         qCritical() << "Failed to load the VirtualBasys QML module.";

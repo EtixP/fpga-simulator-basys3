@@ -1,10 +1,9 @@
 # Qt virtual board
 
 M3 adds the complete Basys 3 presentation to the Qt workspace: 16 switches,
-16 LEDs, five momentary buttons and four seven-segment digits. The normal launcher
-shows a disabled preview because it does not load a design yet. Simulation control
-arrives in M4; the existing ImGui demos remain the runnable interactive examples.
-The Qt integration tests supply real counter and stopwatch designs from C++.
+16 LEDs, five momentary buttons and four seven-segment digits. M4 connects the
+counter and stopwatch in separate launchers with [simulation controls](qt_control.md).
+`--preview` retains the disabled board view. The existing ImGui demos remain available.
 
 ## Interaction and presentation
 
@@ -45,9 +44,9 @@ contract until the old callback has been released.
 
 There is no QML polling or simulation timer. C++ tests advance exact cycle counts
 through BoardModel and explicitly refresh the adapter; clicks, scrolling,
-navigation and painting advance no cycles. M3 introduces no application execution
-loop or refresh cadence, so it makes no new throughput claim. P3/M1 benchmarks
-remain the baseline; rendered simulation throughput belongs to M4's controller.
+navigation and painting advance no cycles. M4's C++ controller supplies the
+application execution loop and snapshot cadence; its timing contract and rendered
+performance reproduction are in [qt_control.md](qt_control.md).
 
 ## Verification
 

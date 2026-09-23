@@ -4,6 +4,7 @@
 #include "constraints/Xdc.h"
 #include "engine/VerilatorEngine.h"
 #include "qt/BoardAdapter.h"
+#include "qt/SimulationController.h"
 
 #include <QDir>
 #include <QGuiApplication>
@@ -38,7 +39,7 @@ inline QQuickItem* boardUiFindItem(QQuickItem* root, const QString& name) {
     return nullptr;
 }
 
-// Tests own the composition root. QML receives only BoardAdapter; simulated
+// Tests own the composition root. Without an optional controller, simulated
 // time advances exclusively through explicit C++ BoardModel::tick calls.
 template <class VModel>
 struct BoardUiFixture {
@@ -51,7 +52,7 @@ struct BoardUiFixture {
 
     ~BoardUiFixture() { closeShell(); }
 
-    bool loadShell() {
+    bool loadShell(vb::qt::SimulationController* controller = nullptr) {
         closeShell();
         QQmlEngine::setObjectOwnership(&adapter, QQmlEngine::CppOwnership);
         qml = std::make_unique<QQmlApplicationEngine>();
@@ -59,7 +60,12 @@ struct BoardUiFixture {
                          [this](const QList<QQmlError>& errors) {
                              for (const auto& error : errors) warnings.append(error.toString());
                          });
-        qml->setInitialProperties({{QStringLiteral("board"), QVariant::fromValue(&adapter)}});
+        QVariantMap properties{{QStringLiteral("board"), QVariant::fromValue(&adapter)}};
+        if (controller) {
+            QQmlEngine::setObjectOwnership(controller, QQmlEngine::CppOwnership);
+            properties.insert(QStringLiteral("controller"), QVariant::fromValue(controller));
+        }
+        qml->setInitialProperties(properties);
         qml->load(QUrl::fromLocalFile(QStringLiteral(VB_QT_QML_DIR "/Main.qml")));
         if (qml->rootObjects().size() != 1) return false;
         window = qobject_cast<QQuickWindow*>(qml->rootObjects().first());

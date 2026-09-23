@@ -11,13 +11,13 @@ find_package(verilator REQUIRED)
 
 option(VB_BUILD_GUI "Build the Dear ImGui SDL2/Metal GUI (macOS)" ON)
 option(VB_BUILD_QT_GUI "Build the Qt Quick frontend" OFF)
+option(VB_BUILD_BENCHMARKS "Build headless and optional Qt performance benchmarks" OFF)
 
 enable_testing()
 add_subdirectory(examples)  # verilated design libraries (sim_*)
 add_subdirectory(src)       # engine, constraints, board, gui
 add_subdirectory(tests)
 
-option(VB_BUILD_BENCHMARKS "Build headless pre-migration performance benchmarks" OFF)
 if(VB_BUILD_BENCHMARKS)
   add_subdirectory(bench)
 endif()

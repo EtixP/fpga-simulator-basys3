@@ -2,9 +2,8 @@
 
 The optional Qt Quick frontend provides the IDE shell and M3 virtual board: project
 navigation, switches, LEDs, buttons, seven-segment display, inspector and tabbed
-output panel. The launcher shows a disabled board preview until design loading and
-simulation control are integrated. Connected widget tests use the M1 adapter and
-real RTL examples; the existing ImGui demos remain available for interactive runs.
+output panel. M4 runs the built-in counter and stopwatch with Run/Pause, Step,
+physical reset and measured speed. The existing ImGui demos remain available.
 
 ## Dependencies and build
 
@@ -18,13 +17,17 @@ brew install qtbase qtdeclarative
 cmake -S . -B build/qt -DVB_BUILD_QT_GUI=ON
 cmake --build build/qt -j 8
 ./build/qt/src/qt/virtualbasys_qt
+./build/qt/src/qt/virtualbasys_qt_stopwatch
 ```
 
 For a Qt installation outside CMake's search paths, pass
 `-DCMAKE_PREFIX_PATH=/path/to/Qt/6.x/macos` (the prefix containing `lib/cmake/Qt6`).
 The usual Verilator/build dependencies still apply. This is a development
 executable using the installed Qt runtime; standalone app packaging is deferred.
-The QML module is embedded, so launch does not depend on the working directory.
+The QML module and example XDC are embedded, so launch does not depend on the working directory.
+Each launcher starts paused at cycle zero. `--realtime` selects best-effort 1×
+pacing; `--preview` opens an unloaded board. Arbitrary project compilation/loading
+is deferred. See [simulation controls](qt_control.md) for exact reset and timing semantics.
 
 `VB_BUILD_QT_GUI` defaults to `OFF`. It is independent of `VB_BUILD_GUI`, which
 keeps its default `ON` and builds the legacy frontend on macOS only:
@@ -38,7 +41,7 @@ keeps its default `ON` and builds the legacy frontend on macOS only:
 
 Qt discovery and autogen settings stay in the frontend subdirectory. The launcher
 consumes the `VirtualBasys.Board` adapter module, which reads BoardModel and keeps
-the simulator outside QML. The launcher has no loaded design yet. Ownership, API
+the simulator outside QML. Each launcher links one Verilated example. Ownership, API
 and testing details are in [qt_adapter.md](qt_adapter.md).
 
 ## Using the shell
@@ -47,8 +50,8 @@ Drag the separators to resize the project, inspector and output panes. The toolb
 buttons toggle their visibility; **Restore layout** restores their default sizes,
 shows all panes and returns to Board / Terminal. Layout changes are session-only.
 Board and Overview select the central workspace; Terminal, UART, Logs and Waveforms
-select the bottom panel. These panels explain their current empty state. Design
-loading, command execution and simulation controls are not yet available.
+select the bottom panel. UART, logs, waveforms and command execution remain
+unavailable in Qt. The simulation toolbar controls the loaded built-in example.
 Board behavior, input ownership and connected-example tests are described in
 [qt_board.md](qt_board.md).
 
@@ -63,8 +66,9 @@ palette keep rendering consistent between tests and the app.
 
 ```sh
 ctest --test-dir build/qt --output-on-failure
-cmake --build build/qt --target virtualbasys_qt_qmllint
+cmake --build build/qt --target virtualbasys_qt_qmllint virtualbasys_qt_stopwatch_qmllint
 ./build/qt/src/qt/virtualbasys_qt --smoke-test
+./build/qt/src/qt/virtualbasys_qt_stopwatch --smoke-test
 ```
 
 The optional `qt_qml_smoke` CTest runs with Qt's offscreen platform, software
@@ -88,9 +92,8 @@ Add `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for display-free captu
 Screenshots are review artifacts; tests check geometry and behavior rather than
 platform-dependent pixel goldens. Layout/navigation advance no simulation time;
 leaving the board or changing focus may release a held momentary input through the
-adapter. Bound board controls use its validated input API. No simulation execution
-loop exists yet, so the P3/M1 performance baselines remain
-the reference. Rendered simulation throughput will be measured with M4's controller.
+adapter. Bound board controls use its validated input API. M4's controller tests
+and rendered throughput benchmarks are described in [qt_control.md](qt_control.md).
 
 To check dependency isolation on a machine with Qt installed:
 

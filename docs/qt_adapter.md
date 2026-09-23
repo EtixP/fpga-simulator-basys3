@@ -2,15 +2,14 @@
 
 M1 introduces the `VirtualBasys.Board` QML module. Its `BoardAdapter`,
 `BoardIoModel` and `SevenSegmentModel` types are uncreatable from QML: C++ supplies
-the adapter through the root window's required, typed `board` property. The
-launcher currently supplies a disconnected adapter. M3 supplies tested board
-widgets and a disabled preview; design loading and simulation control remain later
-work. See [qt_board.md](qt_board.md).
+the adapter through the root window's required, typed `board` property. M3 supplies
+the [board widgets](qt_board.md); M4 connects the built-in counter/stopwatch through
+a separate [SimulationController](qt_control.md). `--preview` supplies a disconnected adapter.
 
 ## Ownership and threading
 
 The composition root owns the engine, then BoardModel, then BoardAdapter, then
-the QML engine. Destroy them in reverse order. BoardAdapter borrows a nullable
+SimulationController and the QML engine. Destroy them in reverse order. BoardAdapter borrows a nullable
 BoardModel pointer fixed for its lifetime; it never deletes the board. Models
 are QObject children of the adapter. The launcher explicitly selects C++ ownership
 for its adapter before injecting it with `setInitialProperties()`.
@@ -18,7 +17,7 @@ for its adapter before injecting it with `setInitialProperties()`.
 All objects and board access stay on the construction/GUI thread. Moving the
 adapter or accessing BoardModel concurrently is unsupported. Adapter input calls
 and refresh reject the wrong thread, even in Release builds. A future worker
-controller requires a deliberate ownership/command/snapshot design in M4.
+controller would require a separate ownership/command/snapshot design; M4 stays on the GUI thread.
 Replacing a design requires replacing its adapter with proper teardown; M1 has
 no attach/detach or asynchronous lifetime mechanism.
 
@@ -56,8 +55,9 @@ Model reads never access BoardModel. Refresh does not call `tick`, including
 `tick(0)`, and never advances cycles or consumes queued UART edges. LED reads can
 settle pending combinational/asynchronous logic through BoardModel's normal peek
 semantics. Display fusion, decoding and virtual-time persistence remain in the
-backend. There are no Qt timing, reset, UART, VGA, log or inspector APIs yet, and
-no board, binding, signal handle or engine object is exposed to QML.
+backend. Scheduling and physical reset are separate controller commands; UART,
+VGA, log and inspector presentation APIs remain later work. No BoardModel,
+binding, signal handle or engine object is exposed to QML.
 
 ## Verification and performance
 

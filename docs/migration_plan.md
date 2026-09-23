@@ -39,8 +39,10 @@ Existing goldens remain the acceptance baseline.
 - Existing Verilator 5.050, CMake, C++20; legacy SDL2/Metal remains until parity.
 - Optional Qt ≥6.5 Core/Gui/Quick/Qml/QuickControls2; VB_BUILD_QT_GUI defaults OFF.
 - M1 uses a C++-owned adapter borrowing BoardModel on the GUI thread; QML sees
-  cached child models. Revisit controller threading explicitly in M4.
-- Define board-level reset/trace/inspection APIs without bypassing BoardModel.
+  cached child models. M4 keeps fixed-batch scheduling on that thread; each
+  built-in example has its own launcher and immutable board/adapter lifetime.
+- M4 reset uses the existing BTNC input and tick API for a 16-cycle pulse without
+  rewinding time. Future trace/inspection APIs must also stay behind BoardModel.
 - Choose VGA scene-graph/native texture versus QQuickItem/QImage after measurements.
 - XDC remains a bounded literal subset; declared HDL indices are preserved separately
   from packed signal values. See the frozen simulator invariants.

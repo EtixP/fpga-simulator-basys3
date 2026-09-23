@@ -49,6 +49,9 @@ public:
     bool refresh();
 
 private:
+    // The scheduling peer must reject stepping during synchronous model
+    // publication; neither this seam nor the borrowed board is exposed to QML.
+    friend class SimulationController;
     bool canAccessBoard() const;
 
     BoardModel* const board_;
