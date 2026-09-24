@@ -42,7 +42,8 @@ Control {
             SpinBox {
                 id: stepCycles
                 objectName: "stepCycles"
-                Layout.preferredWidth: 140
+                // Wide enough for "1,000,000" between the step indicators.
+                Layout.preferredWidth: 164
                 from: 1
                 to: 1000000
                 value: 1

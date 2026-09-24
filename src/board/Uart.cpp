@@ -44,7 +44,7 @@ UartTxDecoder::Result UartTxDecoder::sample(uint64_t now, bool level) {
   return r;
 }
 
-void UartRxDriver::send(uint8_t byte, uint64_t now) {
+uint64_t UartRxDriver::send(uint8_t byte, uint64_t now) {
   queue_.push_back(byte);
   if (!shifting_) {
     shifting_ = true;
@@ -52,6 +52,9 @@ void UartRxDriver::send(uint8_t byte, uint64_t now) {
     frameStart_ = std::max(now, lineFreeCycle_);
     edgeIndex_ = 0;
   }
+  // The front byte owns the frame in flight; each later byte starts one full
+  // frame after its predecessor.
+  return frameStart_ + (queue_.size() - 1) * 10 * cyclesPerBit_;
 }
 
 uint64_t UartRxDriver::nextEdgeCycle() const {

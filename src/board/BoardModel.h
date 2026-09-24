@@ -95,7 +95,20 @@ public:
   bool hasUartTx() const { return uartTxPin_ != nullptr; }
   bool hasUartRx() const { return uartRxPin_ != nullptr; }
   const std::vector<uint8_t>& uartTxBytes() const { return uartTxBytes_; }
-  void sendUart(uint8_t byte);          // queues; ignored if UART_RX unbound
+  // Parallel to uartTxBytes(): the grid cycle at which each byte's stop bit
+  // was sampled — the same stamp as its "UART TX" log event, logged or not.
+  const std::vector<uint64_t>& uartTxByteCycles() const { return uartTxByteCycles_; }
+  // Grid cycles of TX frames whose stop bit sampled low — the "UART TX
+  // framing error" log stamps — recorded whether or not logging is on.
+  const std::vector<uint64_t>& uartTxFramingErrorCycles() const {
+    return uartTxFramingErrorCycles_;
+  }
+  // Queues a byte and returns the cycle scheduled for its start bit: its
+  // "UART RX" log stamp when edges are applied through tick() (a caller that
+  // advances the engine directly applies overdue edges late). Returns
+  // kNoUartCycle, queuing nothing, if UART_RX is unbound.
+  static constexpr uint64_t kNoUartCycle = ~0ull;
+  uint64_t sendUart(uint8_t byte);
   void sendUartText(std::string_view text);
 
   // --- VGA (640x480@60; board resources VGA_R/G/B0..3, VGA_HS, VGA_VS) -------
@@ -134,6 +147,8 @@ private:
   UartTxDecoder uartTx_;
   UartRxDriver uartRx_;
   std::vector<uint8_t> uartTxBytes_;
+  std::vector<uint64_t> uartTxByteCycles_;
+  std::vector<uint64_t> uartTxFramingErrorCycles_;
 
   std::unique_ptr<VgaFrameAssembler> vga_;  // null unless all VGA pins bound
   std::vector<SignalId> vgaIds_;            // distinct watched ids, first-seen order

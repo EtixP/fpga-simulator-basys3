@@ -101,9 +101,9 @@ std::string byteRepr(uint8_t b) {
 }
 }  // namespace
 
-void BoardModel::sendUart(uint8_t byte) {
-  if (!hasUartRx()) return;
-  uartRx_.send(byte, engine_.now());
+uint64_t BoardModel::sendUart(uint8_t byte) {
+  if (!hasUartRx()) return kNoUartCycle;
+  return uartRx_.send(byte, engine_.now());
 }
 
 void BoardModel::sendUartText(std::string_view text) {
@@ -199,9 +199,13 @@ void BoardModel::sampleAtGridCrossing() {
     const UartTxDecoder::Result r = uartTx_.sample(now, readPin(uartTxPin_));
     if (r.byte) {
       uartTxBytes_.push_back(*r.byte);
+      uartTxByteCycles_.push_back(now);
       log_.event(now, "UART TX " + byteRepr(*r.byte));
     }
-    if (r.framingError) log_.event(now, "UART TX framing error");
+    if (r.framingError) {
+      uartTxFramingErrorCycles_.push_back(now);
+      log_.event(now, "UART TX framing error");
+    }
   }
 }
 

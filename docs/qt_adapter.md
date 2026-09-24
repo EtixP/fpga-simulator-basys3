@@ -40,14 +40,17 @@ means at least one anode is bound, as in the existing board API. Unbound digits
 remain dark. Segment masks use the existing lit-bit convention, not raw active-low
 pins. `Qt::DisplayRole` supplies the resource name or decoded digit character.
 
-`setSwitch(int, bool)` and `setButton(int, bool)` are the only adapter invokables.
-They delegate to BoardModel and immediately refresh the presentation snapshot.
-They return true for accepted writes, including idempotent writes; false for
-disconnected/unbound/out-of-range resources, wrong-thread calls or reentry during
-notification. Buttons persist until released through the same method.
+`setSwitch(int, bool)` and `setButton(int, bool)` delegate to BoardModel and
+immediately refresh the presentation snapshot. They return true for accepted
+writes, including idempotent writes; false for disconnected/unbound/out-of-range
+resources, wrong-thread calls or reentry during notification. Buttons persist
+until released through the same method. M5 adds `sendUartText(QString)` and
+`clearUart()` for the read-only `uart` terminal model, with the same thread and
+reentry guards; see [qt_uart.md](qt_uart.md).
 
-The C++-only `refresh()` reads a complete snapshot, stages all four model caches,
-then publishes changed rows and roles. Adjacent equivalent changes are grouped;
+The C++-only `refresh()` reads a complete snapshot, stages all model caches,
+then publishes changed rows and roles. New UART terminal rows are inserted last,
+because list insertions must be announced as they happen. Adjacent equivalent changes are grouped;
 unchanged refreshes emit nothing. Signal handlers see all new cached values.
 Reentrant writes/refreshes are rejected until notification completes.
 
@@ -55,8 +58,8 @@ Model reads never access BoardModel. Refresh does not call `tick`, including
 `tick(0)`, and never advances cycles or consumes queued UART edges. LED reads can
 settle pending combinational/asynchronous logic through BoardModel's normal peek
 semantics. Display fusion, decoding and virtual-time persistence remain in the
-backend. Scheduling and physical reset are separate controller commands; UART,
-VGA, log and inspector presentation APIs remain later work. No BoardModel,
+backend. Scheduling and physical reset are separate controller commands. VGA,
+log and inspector presentation APIs remain later work. No BoardModel,
 binding, signal handle or engine object is exposed to QML.
 
 ## Verification and performance

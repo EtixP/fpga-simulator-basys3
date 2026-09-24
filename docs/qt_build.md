@@ -3,7 +3,8 @@
 The optional Qt Quick frontend provides the IDE shell and M3 virtual board: project
 navigation, switches, LEDs, buttons, seven-segment display, inspector and tabbed
 output panel. M4 runs the built-in counter and stopwatch with Run/Pause, Step,
-physical reset and measured speed. The existing ImGui demos remain available.
+physical reset and measured speed; M5 adds the UART echo launcher and terminal.
+The existing ImGui demos remain available.
 
 ## Dependencies and build
 
@@ -18,6 +19,7 @@ cmake -S . -B build/qt -DVB_BUILD_QT_GUI=ON
 cmake --build build/qt -j 8
 ./build/qt/src/qt/virtualbasys_qt
 ./build/qt/src/qt/virtualbasys_qt_stopwatch
+./build/qt/src/qt/virtualbasys_qt_uart
 ```
 
 For a Qt installation outside CMake's search paths, pass
@@ -25,7 +27,8 @@ For a Qt installation outside CMake's search paths, pass
 The usual Verilator/build dependencies still apply. This is a development
 executable using the installed Qt runtime; standalone app packaging is deferred.
 The QML module and example XDC are embedded, so launch does not depend on the working directory.
-Each launcher starts paused at cycle zero. `--realtime` selects best-effort 1×
+Each launcher starts paused, at cycle zero, except the UART launcher, which applies
+one 16-cycle Reset first (see [qt_uart.md](qt_uart.md)). `--realtime` selects best-effort 1×
 pacing; `--preview` opens an unloaded board. Arbitrary project compilation/loading
 is deferred. See [simulation controls](qt_control.md) for exact reset and timing semantics.
 
@@ -50,8 +53,10 @@ Drag the separators to resize the project, inspector and output panes. The toolb
 buttons toggle their visibility; **Restore layout** restores their default sizes,
 shows all panes and returns to Board / Terminal. Layout changes are session-only.
 Board and Overview select the central workspace; Terminal, UART, Logs and Waveforms
-select the bottom panel. UART, logs, waveforms and command execution remain
-unavailable in Qt. The simulation toolbar controls the loaded built-in example.
+select the bottom panel. The UART tab is a working terminal for designs that bind
+the USB-UART pins, and such designs open on it; see [qt_uart.md](qt_uart.md). Logs,
+waveforms and command execution remain unavailable in Qt. The simulation toolbar
+controls the loaded built-in example.
 Board behavior, input ownership and connected-example tests are described in
 [qt_board.md](qt_board.md).
 

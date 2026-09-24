@@ -52,7 +52,8 @@ struct BoardUiFixture {
 
     ~BoardUiFixture() { closeShell(); }
 
-    bool loadShell(vb::qt::SimulationController* controller = nullptr) {
+    bool loadShell(vb::qt::SimulationController* controller = nullptr,
+                   const QVariantMap& extraProperties = {}) {
         closeShell();
         QQmlEngine::setObjectOwnership(&adapter, QQmlEngine::CppOwnership);
         qml = std::make_unique<QQmlApplicationEngine>();
@@ -65,6 +66,7 @@ struct BoardUiFixture {
             QQmlEngine::setObjectOwnership(controller, QQmlEngine::CppOwnership);
             properties.insert(QStringLiteral("controller"), QVariant::fromValue(controller));
         }
+        properties.insert(extraProperties);
         qml->setInitialProperties(properties);
         qml->load(QUrl::fromLocalFile(QStringLiteral(VB_QT_QML_DIR "/Main.qml")));
         if (qml->rootObjects().size() != 1) return false;

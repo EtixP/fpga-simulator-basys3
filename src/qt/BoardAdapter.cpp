@@ -5,6 +5,7 @@
 #include <QScopedValueRollback>
 #include <QThread>
 
+#include <algorithm>
 #include <array>
 #include <vector>
 
@@ -46,7 +47,9 @@ BoardAdapter::BoardAdapter(BoardModel* board, QObject* parent)
       buttons_(new BoardIoModel(ioRows(buttonNames(), [board](int i) {
           return board && board->hasButton(static_cast<Button>(i));
       }), this)),
-      digits_(new SevenSegmentModel(this)) {
+      digits_(new SevenSegmentModel(this)),
+      uart_(new UartConsoleModel(board && board->hasUartTx(),
+                                 board && board->hasUartRx(), this)) {
     refresh();
 }
 
@@ -72,8 +75,136 @@ bool BoardAdapter::setButton(int index, bool pressed) {
     return refresh();
 }
 
+bool BoardAdapter::sendUartText(const QString& text) {
+    if (!canAccessBoard() || !board_) return false;
+    if (!board_->hasUartRx())
+        return rejectUartSend(tr("This design does not bind the UART receive pin (RsRx, B18)."));
+    if (text.isEmpty()) return false;
+    // toUtf8() silently drops unpaired surrogates; never send part of a text.
+    if (!text.isValidUtf16())
+        return rejectUartSend(tr("Not sent: the text contains characters that cannot be encoded as UTF-8."));
+    const QByteArray bytes = text.toUtf8();
+    if (bytes.size() > UartConsoleModel::MaximumPendingRxBytes) {
+        return rejectUartSend(tr("Not sent: this text is %1 B, but at most %2 B can be queued. "
+                                 "Send it in shorter parts.")
+                                  .arg(bytes.size()).arg(UartConsoleModel::MaximumPendingRxBytes));
+    }
+    const uint64_t now = board_->now();
+    while (!uartRxFrameEnds_.empty() && uartRxFrameEnds_.front() <= now)
+        uartRxFrameEnds_.pop_front();
+    const auto space = UartConsoleModel::MaximumPendingRxBytes
+        - static_cast<qsizetype>(uartRxFrameEnds_.size());
+    if (bytes.size() > space) {
+        return rejectUartSend(tr("Not sent: needs %1 B of transmit-queue space, but only %2 of "
+                                 "%3 B are free. Run or step to transmit queued input.")
+                                  .arg(bytes.size()).arg(space)
+                                  .arg(UartConsoleModel::MaximumPendingRxBytes));
+    }
+    std::vector<UartConsoleModel::Byte> sent;
+    sent.reserve(static_cast<std::size_t>(bytes.size()));
+    for (const char character : bytes) {
+        const auto value = static_cast<uint8_t>(character);
+        const uint64_t start = board_->sendUart(value);
+        sent.push_back({value, start});
+        uartRxFrameEnds_.push_back(start + 10 * kUartCyclesPerBit);
+    }
+    uartRxQueued_ += bytes.size();
+    publish(sent);
+    return true;
+}
+
+bool BoardAdapter::rejectUartSend(const QString& message) {
+    QScopedValueRollback<bool> publishing(publishing_, true);
+    uart_->setSendError(message);
+    return false;
+}
+
+bool BoardAdapter::clearUart() {
+    if (!canAccessBoard()) return false;
+    QScopedValueRollback<bool> publishing(publishing_, true);
+    // Traffic decoded before the click is cleared too, however long ago the
+    // last refresh ran; only later traffic can appear afterwards.
+    const auto update = stageUart();
+    uart_->publishCounters(update.countersChanged);
+    uart_->clearLines();
+    uart_->setSendError({});
+    return true;
+}
+
+void BoardAdapter::noteReset(uint64_t cycle, uint64_t cycles) {
+    if (!canAccessBoard() || !uart_->available()) return;
+    QScopedValueRollback<bool> publishing(publishing_, true);
+    const auto update = stageUart();
+    uart_->publishCounters(update.countersChanged);
+    publishUart(update, {}, UartNotice{cycle, tr("Reset: BTNC held for %1 cycles").arg(cycles)});
+}
+
+BoardAdapter::UartUpdate BoardAdapter::stageUart() {
+    UartUpdate update;
+    qint64 txBytes = 0;
+    if (board_ && board_->hasUartTx()) {
+        const auto& bytes = board_->uartTxBytes();
+        const auto& cycles = board_->uartTxByteCycles();
+        // The board only appends; clamp anyway so a shorter list cannot underflow.
+        uartTxSeen_ = std::min(uartTxSeen_, bytes.size());
+        update.tx.reserve(bytes.size() - uartTxSeen_);
+        for (std::size_t i = uartTxSeen_; i < bytes.size(); ++i)
+            update.tx.push_back({bytes[i], cycles[i]});
+        uartTxSeen_ = bytes.size();
+        txBytes = static_cast<qint64>(bytes.size());
+        const auto& errors = board_->uartTxFramingErrorCycles();
+        uartFramingSeen_ = std::min(uartFramingSeen_, errors.size());
+        update.framingErrors.assign(errors.begin() + static_cast<std::ptrdiff_t>(uartFramingSeen_),
+                                    errors.end());
+        uartFramingSeen_ = errors.size();
+    }
+    if (board_) {
+        const uint64_t now = board_->now();
+        while (!uartRxFrameEnds_.empty() && uartRxFrameEnds_.front() <= now)
+            uartRxFrameEnds_.pop_front();
+    }
+    update.countersChanged = uart_->stageCounters(
+        txBytes, uartRxQueued_, static_cast<qint64>(uartRxFrameEnds_.size()),
+        static_cast<qint64>(uartFramingSeen_));
+    return update;
+}
+
+void BoardAdapter::publishUart(const UartUpdate& update,
+                               std::span<const UartConsoleModel::Byte> rx,
+                               const std::optional<UartNotice>& reset) {
+    // Order by stamp. One grid sample yields a byte or a framing error, never
+    // both; a reset notice follows everything stamped at or before its start.
+    std::vector<UartNotice> notices;
+    for (const uint64_t cycle : update.framingErrors)
+        notices.push_back({cycle, tr("Framing error: stop bit sampled low")});
+    if (reset) notices.push_back(*reset);
+    std::stable_sort(notices.begin(), notices.end(),
+                     [](const auto& a, const auto& b) { return a.cycle < b.cycle; });
+    std::span<const UartConsoleModel::Byte> tx(update.tx);
+    for (const auto& notice : notices) {
+        const auto split = std::find_if(tx.begin(), tx.end(), [&](const auto& byte) {
+            return byte.cycle > notice.cycle;
+        });
+        const auto before = static_cast<std::size_t>(split - tx.begin());
+        uart_->appendTraffic(UartConsoleModel::Tx, tx.first(before));
+        uart_->appendNotice(notice.text, notice.cycle);
+        tx = tx.subspan(before);
+    }
+    uart_->appendTraffic(UartConsoleModel::Tx, tx);
+    if (!rx.empty()) {
+        // Each send starts a row stamped with its own first start bit.
+        uart_->endLine();
+        uart_->appendTraffic(UartConsoleModel::Rx, rx);
+    }
+}
+
 bool BoardAdapter::refresh() {
     if (!canAccessBoard()) return false;
+    publish({});
+    return true;
+}
+
+void BoardAdapter::publish(std::span<const UartConsoleModel::Byte> rx) {
     QScopedValueRollback<bool> publishing(publishing_, true);
     std::array<bool, BoardModel::kSwitchCount> switches{};
     std::array<bool, BoardModel::kLedCount> leds{};
@@ -92,15 +223,21 @@ bool BoardAdapter::refresh() {
         }
     }
 
+    const auto uartUpdate = stageUart();
+
     const auto switchChanges = switches_->stageStates(switches);
     const auto ledChanges = leds_->stageStates(leds);
     const auto buttonChanges = buttons_->stageStates(buttons);
     const auto digitChanges = digits_->stageStates(digits);
+    // A successful send supersedes an earlier rejection.
+    if (!rx.empty()) uart_->setSendError({});
     switches_->publishChanges(switchChanges);
     leds_->publishChanges(ledChanges);
     buttons_->publishChanges(buttonChanges);
     digits_->publishChanges(digitChanges);
-    return true;
+    uart_->publishCounters(uartUpdate.countersChanged);
+    // List rows must be inserted during notification, so they publish last.
+    publishUart(uartUpdate, rx);
 }
 
 }  // namespace vb::qt

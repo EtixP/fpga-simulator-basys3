@@ -117,6 +117,16 @@ int main(int argc, char** argv) {
     }
   }
 
+  // Frontend timestamps are the log's own stamps (not part of the golden).
+  {
+    std::vector<uint64_t> txStamps;
+    for (const auto& line : log)
+      if (line.find("] UART TX 0x") != std::string::npos)
+        txStamps.push_back(std::stoull(line.substr(std::strlen("[cycle "))));
+    CHECK(board.uartTxByteCycles() == txStamps);
+    CHECK(board.uartTxFramingErrorCycles().empty());
+  }
+
   // --- panel regressions (separate instance; not part of the golden) --------
   {
     auto engine2 = makeVerilatorEngine<Vuart_echo>({.topModule = "uart_echo"});
@@ -129,9 +139,9 @@ int main(int argc, char** argv) {
 
     // A send during the first frame's stop-bit tail must defer, not truncate:
     // both bytes echo, none silently dropped.
-    b2.sendUart('a');
+    CHECK_EQ(b2.sendUart('a'), 100'000);
     runTo(b2, 195'000);  // inside 'a's stop bit (frame ends at 204'170)
-    b2.sendUart('b');    // must start at 204'170, not 195'000
+    CHECK_EQ(b2.sendUart('b'), 204'170);  // must start at 204'170, not 195'000
     runTo(b2, 600'000);
     const std::vector<uint8_t> both{'a', 'b'};
     CHECK(b2.uartTxBytes() == both);

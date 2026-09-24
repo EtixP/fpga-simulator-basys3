@@ -61,9 +61,19 @@ int main(int argc, char* argv[]) {
         }
     }
     // Destruction reverses this order: QML -> controller -> adapter -> board ->
-    // engine. Loading/rendering starts paused at cycle zero and never clocks RTL.
+    // engine. Loading/rendering starts paused and never clocks RTL; only a
+    // launcher built with VB_STARTUP_RESET advances its 16 reset cycles first.
     vb::qt::BoardAdapter boardAdapter(board.get());
     vb::qt::SimulationController controller(boardAdapter, QStringLiteral(VB_DESIGN_TITLE));
+#if VB_STARTUP_RESET
+    // uart_echo's two-flop receiver synchronizer powers up low, so without its
+    // btnC reset (R6) it decodes a false start bit and echoes 0xFF. Apply the
+    // Reset control's 16-cycle pulse once, as the legacy demos do at startup.
+    if (board && !controller.reset()) {
+        qCritical() << "Cannot apply the startup reset:" << controller.errorString();
+        return EXIT_FAILURE;
+    }
+#endif
     controller.setRealtime(parser.isSet(realtimeOption));
     QQmlEngine::setObjectOwnership(&boardAdapter, QQmlEngine::CppOwnership);
     QQmlEngine::setObjectOwnership(&controller, QQmlEngine::CppOwnership);
@@ -71,7 +81,9 @@ int main(int argc, char* argv[]) {
     engine.setInitialProperties({{QStringLiteral("board"),
                                  QVariant::fromValue(&boardAdapter)},
                                 {QStringLiteral("controller"),
-                                 QVariant::fromValue(&controller)}});
+                                 QVariant::fromValue(&controller)},
+                                {QStringLiteral("designSource"),
+                                 QStringLiteral(VB_DESIGN)}});
     engine.loadFromModule("VirtualBasys", "Main");
     if (engine.rootObjects().isEmpty()) {
         qCritical() << "Failed to load the VirtualBasys QML module.";

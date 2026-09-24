@@ -8,6 +8,7 @@ qt_add_qml_module(vb_qt_adapter STATIC
   SOURCES BoardAdapter.h BoardAdapter.cpp
           BoardIoModel.h BoardIoModel.cpp
           SevenSegmentModel.h SevenSegmentModel.cpp
+          UartConsoleModel.h UartConsoleModel.cpp VirtualTime.h
           SimulationController.h SimulationController.cpp
 )
 target_include_directories(vb_qt_adapter PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/..")
@@ -15,7 +16,9 @@ target_link_libraries(vb_qt_adapter PUBLIC Qt6::Core Qt6::Qml PRIVATE vb_board)
 
 # One Verilator runtime per launcher. Share the launcher and QML sources while
 # keeping generated QML output directories distinct between executable targets.
+# STARTUP_RESET applies the Reset control's pulse once before the window opens.
 function(vb_add_qt_example target design title)
+  cmake_parse_arguments(PARSE_ARGV 3 VB_EXAMPLE "STARTUP_RESET" "" "")
   qt_add_executable(${target} main.cpp)
   qt_add_qml_module(${target}
     URI VirtualBasys
@@ -24,7 +27,7 @@ function(vb_add_qt_example target design title)
     IMPORT_PATH "${CMAKE_CURRENT_BINARY_DIR}"
     QML_FILES Main.qml ShellPane.qml EmptyState.qml BoardView.qml
               BoardSwitch.qml BoardLed.qml BoardButton.qml SevenSegmentDigit.qml
-              SimulationToolbar.qml
+              SimulationToolbar.qml UartTerminal.qml
   )
   qt_add_resources(${target} "${target}_constraints"
     PREFIX "/examples"
@@ -33,7 +36,8 @@ function(vb_add_qt_example target design title)
   )
   target_compile_definitions(${target} PRIVATE
     VB_MODEL_HEADER="V${design}.h" VB_MODEL=V${design}
-    VB_DESIGN="${design}" VB_DESIGN_TITLE="${title}")
+    VB_DESIGN="${design}" VB_DESIGN_TITLE="${title}"
+    VB_STARTUP_RESET=$<BOOL:${VB_EXAMPLE_STARTUP_RESET}>)
   target_link_libraries(${target} PRIVATE
     Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::QuickControls2
     vb_qt_adapter vb_qt_adapterplugin vb_board vb_engine sim_${design}
@@ -42,6 +46,7 @@ endfunction()
 
 vb_add_qt_example(virtualbasys_qt counter Counter)
 vb_add_qt_example(virtualbasys_qt_stopwatch stopwatch Stopwatch)
+vb_add_qt_example(virtualbasys_qt_uart uart_echo "UART Echo" STARTUP_RESET)
 
 # QCoreApplication/QQmlEngine tests need no window, platform plugin or renderer.
 qt_add_executable(test_qt_board_adapter "${CMAKE_SOURCE_DIR}/tests/test_qt_board_adapter.cpp")
@@ -51,6 +56,14 @@ target_link_libraries(test_qt_board_adapter PRIVATE
 )
 add_test(NAME qt_board_adapter COMMAND test_qt_board_adapter)
 set_tests_properties(qt_board_adapter PROPERTIES TIMEOUT 20)
+
+qt_add_executable(test_qt_uart_console "${CMAKE_SOURCE_DIR}/tests/test_qt_uart_console.cpp")
+target_include_directories(test_qt_uart_console PRIVATE "${CMAKE_SOURCE_DIR}/tests")
+target_link_libraries(test_qt_uart_console PRIVATE
+  vb_qt_adapter vb_qt_adapterplugin vb_board vb_engine Qt6::Test
+)
+add_test(NAME qt_uart_console COMMAND test_qt_uart_console)
+set_tests_properties(qt_uart_console PROPERTIES TIMEOUT 60)
 
 qt_add_executable(test_qt_counter "${CMAKE_SOURCE_DIR}/tests/test_qt_counter.cpp")
 target_include_directories(test_qt_counter PRIVATE "${CMAKE_SOURCE_DIR}/tests")
@@ -111,11 +124,11 @@ set_tests_properties(qt_qml_smoke PROPERTIES
   TIMEOUT 20
 )
 
-foreach(variant IN ITEMS preview stopwatch)
+foreach(variant IN ITEMS preview stopwatch uart)
   if(variant STREQUAL "preview")
     add_test(NAME qt_qml_${variant}_smoke COMMAND virtualbasys_qt --preview --smoke-test)
   else()
-    add_test(NAME qt_qml_${variant}_smoke COMMAND virtualbasys_qt_stopwatch --smoke-test)
+    add_test(NAME qt_qml_${variant}_smoke COMMAND virtualbasys_qt_${variant} --smoke-test)
   endif()
   set_tests_properties(qt_qml_${variant}_smoke PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
@@ -150,9 +163,22 @@ set_tests_properties(qt_simulation_ui PROPERTIES
   ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
   TIMEOUT 90)
 
+# The UART terminal against the real uart_echo RTL, through actual input events.
+qt_add_executable(test_qt_uart_ui "${CMAKE_SOURCE_DIR}/tests/test_qt_uart_ui.cpp")
+target_include_directories(test_qt_uart_ui PRIVATE "${CMAKE_SOURCE_DIR}/tests")
+target_compile_definitions(test_qt_uart_ui PRIVATE
+  VB_QT_QML_DIR="${CMAKE_CURRENT_SOURCE_DIR}" VB_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+target_link_libraries(test_qt_uart_ui PRIVATE
+  vb_qt_adapter vb_qt_adapterplugin vb_board vb_engine sim_uart_echo
+  Qt6::Test Qt6::Quick Qt6::Qml Qt6::QuickControls2)
+add_test(NAME qt_uart_ui COMMAND test_qt_uart_ui)
+set_tests_properties(qt_uart_ui PROPERTIES
+  ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
+  TIMEOUT 120)
+
 # Keep imported Qt dependencies in this directory's scope, including benchmarks.
 if(VB_BUILD_BENCHMARKS)
-  foreach(design IN ITEMS counter stopwatch)
+  foreach(design IN ITEMS counter stopwatch uart_echo)
     qt_add_executable(benchmark_qt_control_${design} "${CMAKE_SOURCE_DIR}/bench/qt_controller.cpp")
     set_target_properties(benchmark_qt_control_${design} PROPERTIES
       RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bench")

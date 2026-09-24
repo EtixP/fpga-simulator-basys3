@@ -67,7 +67,13 @@ PASS reviews on 2026-09-18. Qt migration must preserve this contract.
   Observation spacing must stay within the supported >=4 chunks/bit envelope.
 - A valid sustained echo stream must not drop bytes merely because transmitter
   scheduling accumulates one extra cycle per frame. Reset discards RTL in-flight state.
-- Decoded byte collection and optional logs currently grow without a bounded cap.
+- Each decoded TX byte and each TX framing error also records its log stamp (the
+  grid cycle of its stop-bit sample), whether or not logging is enabled. sendUart
+  returns the scheduled start-bit cycle, which is its RX log stamp when edges are
+  applied through tick. These are read-only records; they do not change timing
+  or log output.
+- Decoded bytes, their stamps and optional logs currently grow without a bounded
+  cap. Frontends bound their own views.
 
 ## VGA
 - Monitor supports 640x480 active pixels, 800 pixel periods/line, 525 lines/frame,

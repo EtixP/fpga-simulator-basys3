@@ -52,6 +52,13 @@ void measure(const char* mode, bool realtime, uint64_t minimumCycles, uint64_t r
     board.setButton(vb::Button::C, false);
     for (unsigned i = 0; i < 4; ++i) board.setSwitch(i, true);
     board.setButton(vb::Button::U, true);
+    // UART designs echo a continuous queued stream through the terminal for
+    // the whole warmup and measurement (~211 frames per 22M cycles).
+    if (board.hasUartRx()) {
+        QString text;
+        while (text.size() < 512) text += QStringLiteral("VirtualBasys UART benchmark 0123456789\n");
+        if (!adapter.sendUartText(text.left(512))) throw std::runtime_error("UART stream rejected");
+    }
     board.tick(2'000'000);
     board.setButton(vb::Button::U, false);
     adapter.refresh();
@@ -122,6 +129,8 @@ void measure(const char* mode, bool realtime, uint64_t minimumCycles, uint64_t r
     const auto cycles = board.now() - initialCycle;
     if (cycles < minimumCycles || qmlError || (rendered && !frames))
         throw std::runtime_error("measurement missing cycles or a clean rendered frame");
+    if (board.hasUartTx() && board.uartTxBytes().empty())
+        throw std::runtime_error("UART benchmark produced no echo traffic");
     std::cout << VB_DESIGN << ',' << mode << ',' << (realtime ? "realtime" : "turbo") << ','
               << run << ',' << cycles << ',' << seconds << ',' << cycles / seconds << ','
               << cycles / seconds / 100'000'000.0 << ',' << frames << '\n';

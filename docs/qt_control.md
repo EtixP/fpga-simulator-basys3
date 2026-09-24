@@ -1,7 +1,8 @@
 # Qt simulation controls
 
 M4 runs the built-in counter and stopwatch designs in the Qt board. Both start
-**paused at cycle zero**. Use `virtualbasys_qt` for the counter and
+**paused at cycle zero**. The M5 UART launcher applies one Reset pulse first and
+opens at cycle 16; see [qt_uart.md](qt_uart.md). Use `virtualbasys_qt` for the counter and
 `virtualbasys_qt_stopwatch` for the stopwatch; each executable links one Verilated
 design and embeds its XDC. Arbitrary design compilation and switching designs
 inside a running window remain future work. `--preview` opens an unloaded board.

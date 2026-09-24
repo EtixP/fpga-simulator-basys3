@@ -51,8 +51,8 @@ public:
   // stop bit's FULL duration (frameStart + 10*bit), so a send issued during
   // the stop tail defers rather than truncating the frame in flight (an 8N1
   // violation no real host UART can produce). Queued bytes chain
-  // back-to-back.
-  void send(uint8_t byte, uint64_t now);
+  // back-to-back. Returns the cycle at which this byte's start bit is driven.
+  uint64_t send(uint8_t byte, uint64_t now);
 
   // Next cycle at which the line level must be poked; UINT64_MAX when idle.
   static constexpr uint64_t kIdle = ~0ull;

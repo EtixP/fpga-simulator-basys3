@@ -43,6 +43,9 @@ Existing goldens remain the acceptance baseline.
   built-in example has its own launcher and immutable board/adapter lifetime.
 - M4 reset uses the existing BTNC input and tick API for a 16-cycle pulse without
   rewinding time. Future trace/inspection APIs must also stay behind BoardModel.
+- M5 groups the board's own UART stamps into a bounded adapter scrollback
+  (1,000 rows, 4,096 pending input bytes). The UART launcher applies the Reset
+  control once at startup because uart_echo needs its btnC reset (R6).
 - Choose VGA scene-graph/native texture versus QQuickItem/QImage after measurements.
 - XDC remains a bounded literal subset; declared HDL indices are preserved separately
   from packed signal values. See the frozen simulator invariants.

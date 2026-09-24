@@ -10,11 +10,24 @@ ApplicationWindow {
     objectName: "shellWindow"
     required property BoardAdapter board
     property SimulationController controller: null
+    // Example file stem (for example "uart_echo"); defaults to the design name.
+    property string designSource: ""
+    readonly property string designFileStem: designSource.length > 0 ? designSource
+        : controller !== null ? controller.designName.toLowerCase() : ""
     property int workspaceIndex: 0
-    property int outputIndex: 0
     readonly property bool boardConnected: board !== null && board.connected
     readonly property bool boardUnavailable: board === null
     readonly property bool liveSimulation: controller !== null && controller.connected
+    readonly property bool uartReady: boardConnected && board.uart !== null && board.uart.available
+    // Designs that bind the USB-UART pins open on their terminal.
+    readonly property int defaultOutputIndex: uartReady ? 1 : 0
+    property int outputIndex: defaultOutputIndex
+    readonly property bool showUartTerminal: outputIndex === 1 && uartReady
+    readonly property string uartUnavailableDetail: boardUnavailable
+        ? qsTr("The board connection could not be initialized, so there is no UART to monitor.")
+        : !boardConnected
+        ? qsTr("No design is loaded. The terminal opens for designs that bind the USB-UART pins (RsRx B18, RsTx A18).")
+        : qsTr("This design does not bind the USB-UART pins (RsRx B18, RsTx A18).")
     width: 1280
     height: liveSimulation ? 880 : 820
     minimumWidth: 960
@@ -78,7 +91,7 @@ ApplicationWindow {
             inspectorPane.SplitView.preferredWidth = 260
             outputPane.SplitView.preferredHeight = 170
             window.workspaceIndex = 0
-            window.outputIndex = 0
+            window.outputIndex = window.defaultOutputIndex
             restoreButton.forceActiveFocus()
         }
     }
@@ -199,8 +212,8 @@ ApplicationWindow {
                         objectName: "projectDesignFiles"
                         Layout.fillWidth: true
                         text: window.liveSimulation
-                            ? "examples/" + window.controller.designName.toLowerCase() + ".v\nexamples/"
-                                + window.controller.designName.toLowerCase() + ".xdc"
+                            ? "examples/" + window.designFileStem + ".v\nexamples/"
+                                + window.designFileStem + ".xdc"
                             : qsTr("Design files will appear here when project loading is available.")
                         color: window.palette.placeholderText
                         wrapMode: Text.WordWrap
@@ -319,15 +332,23 @@ ApplicationWindow {
                 EmptyState {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
+                    visible: !window.showUartTerminal
                     compact: true
-                    headingObjectName: "outputTitle"
-                    detailObjectName: "outputDetail"
+                    headingObjectName: visible ? "outputTitle" : ""
+                    detailObjectName: visible ? "outputDetail" : ""
                     heading: [qsTr("No terminal session"), qsTr("UART terminal unavailable"),
                               qsTr("Log view unavailable"), qsTr("No waveform open")][window.outputIndex]
                     detail: [qsTr("Command execution is not available in this version."),
-                             qsTr("UART traffic and send controls are not available in this version."),
+                             window.uartUnavailableDetail,
                              qsTr("Simulation logs are not displayed in this version."),
                              qsTr("Waveform viewing is not available in this version.")][window.outputIndex]
+                }
+                UartTerminal {
+                    objectName: "uartTerminal"
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    visible: window.showUartTerminal
+                    board: window.board
                 }
             }
         }

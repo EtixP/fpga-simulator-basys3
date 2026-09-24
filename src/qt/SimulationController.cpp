@@ -1,6 +1,7 @@
 #include "qt/SimulationController.h"
 
 #include "board/BoardModel.h"
+#include "qt/VirtualTime.h"
 
 #include <QScopedValueRollback>
 #include <QThread>
@@ -70,10 +71,7 @@ void SimulationController::clearMeasurement(qint64 now) {
 void SimulationController::publish(qint64 now) {
     const uint64_t cycle = board_ ? board_->now() : 0;
     cycleText_ = QString::number(cycle);
-    // Divide first: cycle*10 would overflow long before the cycle counter does.
-    virtualTimeText_ = QStringLiteral("%1.%2 s")
-        .arg(cycle / 100'000'000)
-        .arg((cycle % 100'000'000) * 10, 9, 10, QLatin1Char('0'));
+    virtualTimeText_ = formatVirtualTime(cycle);
     if (running_ && now >= sampleWall_ && now - sampleWall_ >= MeasurementInterval) {
         cyclesPerSecond_ = static_cast<double>(cycle - sampleCycle_) * 1e9
             / static_cast<double>(now - sampleWall_);
@@ -151,6 +149,7 @@ bool SimulationController::reset() {
     }
     errorString_.clear();
     const bool wasPressed = board_->buttonState(Button::C);
+    const uint64_t pulseStart = board_->now();
     bool success = false;
     try {
         board_->setButton(Button::C, true);
@@ -160,6 +159,8 @@ bool SimulationController::reset() {
     } catch (const std::exception& error) {
         fail(QString::fromUtf8(error.what()));
     }
+    // Presentation only: mark a completed pulse among UART terminal traffic.
+    if (success && errorString_.isEmpty()) adapter_->noteReset(pulseStart, ResetCycles);
     const auto now = options_.nowNanoseconds();
     clearMeasurement(now);
     publish(now);

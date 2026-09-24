@@ -52,7 +52,9 @@ void uartValidFrames() {
 
   UartRxDriver driver;
   constexpr uint64_t start = 137;
-  for (uint8_t byte : bytes) driver.send(byte, start);
+  // Each returned start cycle is the analytical frame start below.
+  for (uint64_t frame = 0; frame < bytes.size(); ++frame)
+    CHECK_EQ(driver.send(bytes[frame], start), start + frame * 10 * kBit);
   for (uint64_t frame = 0; frame < bytes.size(); ++frame) {
     for (uint64_t bit = 0; bit < 10; ++bit) {
       const uint64_t edgeCycle = start + frame * 10 * kBit + bit * kBit;
@@ -70,8 +72,12 @@ void uartValidFrames() {
   // Although all bit edges have been consumed, the previous frame retains
   // the line until its stop bit has lasted one full bit duration.
   const uint64_t freeCycle = start + bytes.size() * 10 * kBit;
-  driver.send(0x96, freeCycle - 1);
+  CHECK_EQ(driver.send(0x96, freeCycle - 1), freeCycle);
   CHECK_EQ(driver.nextEdgeCycle(), freeCycle);
+  // A byte queued behind it chains one frame later; an idle line starts now.
+  CHECK_EQ(driver.send(0x69, freeCycle), freeCycle + 10 * kBit);
+  UartRxDriver idle;
+  CHECK_EQ(idle.send(0x00, 5), 5);
 }
 
 void sevenSegmentBoundaries() {
@@ -185,8 +191,19 @@ struct Observation {
   std::vector<std::string> log;
   std::vector<std::pair<uint64_t, uint64_t>> rx;
   std::vector<uint8_t> tx;
+  std::vector<uint64_t> txCycles;
   std::array<uint64_t, 4> lastLit;
 };
+
+// Cycle stamps of log lines containing `body`, in emission order.
+std::vector<uint64_t> logStamps(const std::vector<std::string>& log, const std::string& body) {
+  std::vector<uint64_t> stamps;
+  for (const auto& line : log) {
+    if (line.rfind("[cycle ", 0) != 0 || line.find(body) == std::string::npos) continue;
+    stamps.push_back(std::stoull(line.substr(7)));
+  }
+  return stamps;
+}
 
 Observation runPartition(bool split) {
   PeripheralEngine engine;
@@ -218,12 +235,14 @@ Observation runPartition(bool split) {
   }
   CHECK_EQ(board.now(), 2'219'999);
   CHECK(board.uartTxBytes() == bytes);
+  CHECK(board.uartTxByteCycles() == logStamps(board.structuredLog(), "] UART TX 0x"));
   std::array<uint64_t, 4> lastLit;
   for (uint32_t digit = 0; digit < 4; ++digit) {
     CHECK_EQ(board.digitSegments(digit), 0);  // persistence expired
     lastLit[digit] = board.digitLastLit(digit);
   }
-  return {board.structuredLog(), engine.rxPokes, board.uartTxBytes(), lastLit};
+  return {board.structuredLog(), engine.rxPokes, board.uartTxBytes(),
+          board.uartTxByteCycles(), lastLit};
 }
 
 void boardPartitionsAndZeroTick() {
@@ -232,6 +251,7 @@ void boardPartitionsAndZeroTick() {
   CHECK(whole.log == parts.log);
   CHECK(whole.rx == parts.rx);
   CHECK(whole.tx == parts.tx);
+  CHECK(whole.txCycles == parts.txCycles);
   CHECK(whole.lastLit == parts.lastLit);
 
   PeripheralEngine engine;
@@ -343,6 +363,82 @@ void uartSameStampOrder() {
                                  board.structuredLog().end()) == expected);
 }
 
+// The frontend's UART stamps are the board's own log stamps, recorded even
+// while logging is off, for bytes and for each framing error.
+void uartBoardStamps() {
+  const std::vector<uint8_t> bytes{0x00, 0x96, 0xFF};
+  const std::vector<uint64_t> badStarts{400'000, 750'000};
+  for (bool logging : {true, false}) {
+    PeripheralEngine engine;
+    engine.output = [&](PeripheralEngine::Port port, uint64_t now) -> uint64_t {
+      switch (port) {
+        case PeripheralEngine::Tx:
+          // Two frames whose stop bits are low, around four valid frames.
+          for (const uint64_t bad : badStarts)
+            if (now >= bad && now < bad + 10 * kBit)
+              return now >= bad + 9 * kBit ? false : serialLevel(now, bad, kBit, {0x5A});
+          return serialLevel(now, 12'345, kBit, bytes)
+              && serialLevel(now, 600'000, kBit, {0x41});
+        case PeripheralEngine::Led: return 0;
+        case PeripheralEngine::Anode: return 15;
+        case PeripheralEngine::Segment: return 127;
+        case PeripheralEngine::Dp: return 1;
+        default: CHECK(false); return 0;
+      }
+    };
+    BoardModel board(engine, binding(engine));
+    board.setLogEnabled(true);
+    CHECK(board.uartTxByteCycles().empty());
+    CHECK(board.uartTxFramingErrorCycles().empty());
+    board.tick(100'001);
+    // Queued behind nothing, then chained; one sent during the stop tail.
+    const uint64_t first = board.sendUart('a');
+    const uint64_t second = board.sendUart('b');
+    CHECK_EQ(first, 100'001);
+    CHECK_EQ(second, 100'001 + 10 * kBit);
+    board.tick(second + 9 * kBit + 17 - board.now());
+    const uint64_t deferred = board.sendUart('c');
+    CHECK_EQ(deferred, second + 10 * kBit);
+    board.setLogEnabled(logging);
+    board.tick(900'000 - board.now());
+
+    const std::vector<uint8_t> expected{0x00, 0x96, 0xFF, 0x41};
+    CHECK(board.uartTxBytes() == expected);
+    CHECK_EQ(board.uartTxByteCycles().size(), expected.size());
+    // Independent grid oracle: first grid at/after the start edge, then the
+    // first grid at/after start + 9.5 bits.
+    const auto stopSample = [](uint64_t start) {
+      const uint64_t observed = (start + kGrid - 1) / kGrid * kGrid;
+      return (observed + 9 * kBit + kBit / 2 + kGrid - 1) / kGrid * kGrid;
+    };
+    for (size_t i = 0; i < 3; ++i)
+      CHECK_EQ(board.uartTxByteCycles()[i], stopSample(12'345 + i * 10 * kBit));
+    CHECK_EQ(board.uartTxByteCycles()[3], stopSample(600'000));
+    const std::vector<uint64_t> errors{stopSample(badStarts[0]), stopSample(badStarts[1])};
+    CHECK(board.uartTxFramingErrorCycles() == errors);
+    const auto& log = board.structuredLog();
+    if (logging) {
+      CHECK(board.uartTxByteCycles() == logStamps(log, "] UART TX 0x"));
+      CHECK(logStamps(log, "UART TX framing error") == errors);
+    } else {
+      // Only events before logging was disabled were recorded.
+      CHECK(logStamps(log, "UART TX framing error").empty());
+    }
+    const std::vector<uint64_t> starts = logging
+        ? std::vector<uint64_t>{first, second, deferred} : std::vector<uint64_t>{first, second};
+    CHECK(logStamps(log, "] UART RX 0x") == starts);
+  }
+
+  // An unbound receive line neither queues nor reports a start cycle.
+  PeripheralEngine engine;
+  BoardModel txOnly(engine, PinBinding::bind(
+      parseXdc("set_property PACKAGE_PIN A18 [get_ports tx]\n"), engine));
+  CHECK(txOnly.hasUartTx() && !txOnly.hasUartRx());
+  CHECK_EQ(txOnly.sendUart('x'), BoardModel::kNoUartCycle);
+  txOnly.tick(0);
+  CHECK(engine.rxPokes.empty());
+}
+
 void uartMalformedFrames() {
   UartTxDecoder decoder;
   std::vector<uint8_t> received;
@@ -379,6 +475,7 @@ int main() {
   boardPartitionsAndZeroTick();
   boardGridAndLogOrder();
   uartSameStampOrder();
+  uartBoardStamps();
   std::puts("test_peripheral_contract: valid frames, persistence, board grid/log contracts PASS");
   uartMalformedFrames();
   std::puts("test_peripheral_contract: PASS");
