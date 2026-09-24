@@ -90,6 +90,7 @@ void measure(const char* mode, bool realtime, uint64_t minimumCycles, uint64_t r
     }
 
     const auto initialCycle = board.now();
+    const auto initialVgaFrames = board.vgaCompletedFrames();
     const auto start = std::chrono::steady_clock::now();
     if (std::string_view(mode) == "board") {
         uint64_t remaining = minimumCycles;
@@ -133,7 +134,8 @@ void measure(const char* mode, bool realtime, uint64_t minimumCycles, uint64_t r
         throw std::runtime_error("UART benchmark produced no echo traffic");
     std::cout << VB_DESIGN << ',' << mode << ',' << (realtime ? "realtime" : "turbo") << ','
               << run << ',' << cycles << ',' << seconds << ',' << cycles / seconds << ','
-              << cycles / seconds / 100'000'000.0 << ',' << frames << '\n';
+              << cycles / seconds / 100'000'000.0 << ',' << frames << ','
+              << board.vgaCompletedFrames() - initialVgaFrames << '\n';
 
     // Optional authentic snapshots are taken after timing has ended, paused.
     const QString directory = qEnvironmentVariable("VB_QT_SCREENSHOT_DIR");
@@ -159,7 +161,8 @@ int main(int argc, char** argv) {
         const uint64_t runs = argc > 2 ? positive(argv[2]) : 3;
         if (cycles > 1'000'000'000 || runs > 100)
             throw std::invalid_argument("benchmark limit: 1 billion cycles, 100 runs");
-        std::cout << "design,mode,pacing,run,cycles,seconds,cycles_per_second,realtime_multiplier,frames\n"
+        // frames = Qt presentations; vga_frames = simulated VGA frames completed.
+        std::cout << "design,mode,pacing,run,cycles,seconds,cycles_per_second,realtime_multiplier,frames,vga_frames\n"
                   << std::setprecision(9);
         for (uint64_t run = 1; run <= runs; ++run) {
             for (unsigned order = 0; order < 3; ++order) {

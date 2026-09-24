@@ -9,10 +9,12 @@ qt_add_qml_module(vb_qt_adapter STATIC
           BoardIoModel.h BoardIoModel.cpp
           SevenSegmentModel.h SevenSegmentModel.cpp
           UartConsoleModel.h UartConsoleModel.cpp VirtualTime.h
+          VgaFrameModel.h VgaFrameModel.cpp VgaDisplay.h VgaDisplay.cpp
           SimulationController.h SimulationController.cpp
 )
 target_include_directories(vb_qt_adapter PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/..")
-target_link_libraries(vb_qt_adapter PUBLIC Qt6::Core Qt6::Qml PRIVATE vb_board)
+# Gui/Quick: the VGA frame image and its scene-graph display item.
+target_link_libraries(vb_qt_adapter PUBLIC Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick PRIVATE vb_board)
 
 # One Verilator runtime per launcher. Share the launcher and QML sources while
 # keeping generated QML output directories distinct between executable targets.
@@ -27,7 +29,7 @@ function(vb_add_qt_example target design title)
     IMPORT_PATH "${CMAKE_CURRENT_BINARY_DIR}"
     QML_FILES Main.qml ShellPane.qml EmptyState.qml BoardView.qml
               BoardSwitch.qml BoardLed.qml BoardButton.qml SevenSegmentDigit.qml
-              SimulationToolbar.qml UartTerminal.qml
+              SimulationToolbar.qml UartTerminal.qml VgaMonitor.qml
   )
   qt_add_resources(${target} "${target}_constraints"
     PREFIX "/examples"
@@ -47,6 +49,7 @@ endfunction()
 vb_add_qt_example(virtualbasys_qt counter Counter)
 vb_add_qt_example(virtualbasys_qt_stopwatch stopwatch Stopwatch)
 vb_add_qt_example(virtualbasys_qt_uart uart_echo "UART Echo" STARTUP_RESET)
+vb_add_qt_example(virtualbasys_qt_vga vga_pattern "VGA Pattern" STARTUP_RESET)
 
 # QCoreApplication/QQmlEngine tests need no window, platform plugin or renderer.
 qt_add_executable(test_qt_board_adapter "${CMAKE_SOURCE_DIR}/tests/test_qt_board_adapter.cpp")
@@ -64,6 +67,14 @@ target_link_libraries(test_qt_uart_console PRIVATE
 )
 add_test(NAME qt_uart_console COMMAND test_qt_uart_console)
 set_tests_properties(qt_uart_console PROPERTIES TIMEOUT 60)
+
+qt_add_executable(test_qt_vga_model "${CMAKE_SOURCE_DIR}/tests/test_qt_vga_model.cpp")
+target_include_directories(test_qt_vga_model PRIVATE "${CMAKE_SOURCE_DIR}/tests")
+target_link_libraries(test_qt_vga_model PRIVATE
+  vb_qt_adapter vb_qt_adapterplugin vb_board vb_engine Qt6::Test
+)
+add_test(NAME qt_vga_model COMMAND test_qt_vga_model)
+set_tests_properties(qt_vga_model PROPERTIES TIMEOUT 120)
 
 qt_add_executable(test_qt_counter "${CMAKE_SOURCE_DIR}/tests/test_qt_counter.cpp")
 target_include_directories(test_qt_counter PRIVATE "${CMAKE_SOURCE_DIR}/tests")
@@ -124,7 +135,7 @@ set_tests_properties(qt_qml_smoke PROPERTIES
   TIMEOUT 20
 )
 
-foreach(variant IN ITEMS preview stopwatch uart)
+foreach(variant IN ITEMS preview stopwatch uart vga)
   if(variant STREQUAL "preview")
     add_test(NAME qt_qml_${variant}_smoke COMMAND virtualbasys_qt --preview --smoke-test)
   else()
@@ -176,9 +187,22 @@ set_tests_properties(qt_uart_ui PROPERTIES
   ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
   TIMEOUT 120)
 
+# The VGA monitor against the real vga_pattern RTL; rendered pixels are compared.
+qt_add_executable(test_qt_vga_ui "${CMAKE_SOURCE_DIR}/tests/test_qt_vga_ui.cpp")
+target_include_directories(test_qt_vga_ui PRIVATE "${CMAKE_SOURCE_DIR}/tests")
+target_compile_definitions(test_qt_vga_ui PRIVATE
+  VB_QT_QML_DIR="${CMAKE_CURRENT_SOURCE_DIR}" VB_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+target_link_libraries(test_qt_vga_ui PRIVATE
+  vb_qt_adapter vb_qt_adapterplugin vb_board vb_engine sim_vga_pattern
+  Qt6::Test Qt6::Quick Qt6::Qml Qt6::QuickControls2)
+add_test(NAME qt_vga_ui COMMAND test_qt_vga_ui)
+set_tests_properties(qt_vga_ui PROPERTIES
+  ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
+  TIMEOUT 180)
+
 # Keep imported Qt dependencies in this directory's scope, including benchmarks.
 if(VB_BUILD_BENCHMARKS)
-  foreach(design IN ITEMS counter stopwatch uart_echo)
+  foreach(design IN ITEMS counter stopwatch uart_echo vga_pattern)
     qt_add_executable(benchmark_qt_control_${design} "${CMAKE_SOURCE_DIR}/bench/qt_controller.cpp")
     set_target_properties(benchmark_qt_control_${design} PROPERTIES
       RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bench")
@@ -190,4 +214,14 @@ if(VB_BUILD_BENCHMARKS)
       vb_qt_adapter vb_qt_adapterplugin vb_board vb_engine sim_${design}
       Qt6::Test Qt6::Quick Qt6::Qml Qt6::QuickControls2)
   endforeach()
+
+  # Measures the VGA display technique: texture item versus painted QImage.
+  qt_add_executable(benchmark_qt_vga_display "${CMAKE_SOURCE_DIR}/bench/qt_vga_display.cpp")
+  set_target_properties(benchmark_qt_vga_display PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bench")
+  target_compile_definitions(benchmark_qt_vga_display PRIVATE
+    VB_XDC="${CMAKE_SOURCE_DIR}/examples/vga_pattern.xdc")
+  target_link_libraries(benchmark_qt_vga_display PRIVATE
+    vb_qt_adapter vb_qt_adapterplugin vb_board vb_engine sim_vga_pattern
+    Qt6::Test Qt6::Quick Qt6::Qml Qt6::QuickControls2)
 endif()

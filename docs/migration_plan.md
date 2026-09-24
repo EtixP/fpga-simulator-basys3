@@ -46,6 +46,9 @@ Existing goldens remain the acceptance baseline.
 - M5 groups the board's own UART stamps into a bounded adapter scrollback
   (1,000 rows, 4,096 pending input bytes). The UART launcher applies the Reset
   control once at startup because uart_echo needs its btnC reset (R6).
-- Choose VGA scene-graph/native texture versus QQuickItem/QImage after measurements.
+- M6 chose the scene-graph texture item over a painted QImage by measurement: a
+  new frame costs 0.40 ms against 1.56 ms of render-thread time, with equal
+  throughput. The display snaps to device pixels, which Metal requires for exact
+  pixels at fractional layout positions (docs/qt_vga.md).
 - XDC remains a bounded literal subset; declared HDL indices are preserved separately
   from packed signal values. See the frozen simulator invariants.

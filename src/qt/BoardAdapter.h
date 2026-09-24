@@ -3,6 +3,7 @@
 #include "qt/BoardIoModel.h"
 #include "qt/SevenSegmentModel.h"
 #include "qt/UartConsoleModel.h"
+#include "qt/VgaFrameModel.h"
 
 #include <QObject>
 #include <QtQml/qqmlregistration.h>
@@ -35,6 +36,7 @@ class BoardAdapter : public QObject {
     Q_PROPERTY(vb::qt::BoardIoModel* buttons READ buttons CONSTANT FINAL)
     Q_PROPERTY(vb::qt::SevenSegmentModel* digits READ digits CONSTANT FINAL)
     Q_PROPERTY(vb::qt::UartConsoleModel* uart READ uart CONSTANT FINAL)
+    Q_PROPERTY(vb::qt::VgaFrameModel* vga READ vga CONSTANT FINAL)
 
 public:
     explicit BoardAdapter(BoardModel* board = nullptr, QObject* parent = nullptr);
@@ -46,6 +48,7 @@ public:
     BoardIoModel* buttons() const { return buttons_; }
     SevenSegmentModel* digits() const { return digits_; }
     UartConsoleModel* uart() const { return uart_; }
+    VgaFrameModel* vga() const { return vga_; }
 
     // True means accepted, including an idempotent write. Invalid/unbound
     // resources, calls on another thread or during notification return false.
@@ -103,6 +106,7 @@ private:
     BoardIoModel* const buttons_;
     SevenSegmentModel* const digits_;
     UartConsoleModel* const uart_;
+    VgaFrameModel* const vga_;
     std::size_t uartTxSeen_ = 0;
     std::size_t uartFramingSeen_ = 0;
     qint64 uartRxQueued_ = 0;

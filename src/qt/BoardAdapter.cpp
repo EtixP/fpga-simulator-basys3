@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <utility>
 #include <vector>
 
 namespace vb::qt {
@@ -49,7 +50,8 @@ BoardAdapter::BoardAdapter(BoardModel* board, QObject* parent)
       }), this)),
       digits_(new SevenSegmentModel(this)),
       uart_(new UartConsoleModel(board && board->hasUartTx(),
-                                 board && board->hasUartRx(), this)) {
+                                 board && board->hasUartRx(), this)),
+      vga_(new VgaFrameModel(board && board->hasVga(), this)) {
     refresh();
 }
 
@@ -225,6 +227,26 @@ void BoardAdapter::publish(std::span<const UartConsoleModel::Byte> rx) {
 
     const auto uartUpdate = stageUart();
 
+    // The monitor's framebuffer is copied once per completed frame, never per
+    // refresh; the copy is independent of later board frames.
+    VgaFrameModel::State vgaState;
+    QImage vgaImage;
+    if (board_ && board_->hasVga()) {
+        vgaState.completedFrames = static_cast<qint64>(board_->vgaCompletedFrames());
+        vgaState.frameCycle = board_->vgaLastFrameCycle();
+        vgaState.cyclesPerPixel = static_cast<int>(board_->vgaCyclesPerPixel());
+        vgaState.ok = board_->vgaOk();
+        vgaState.status = QString::fromStdString(board_->vgaStatus());
+        const auto& rgb = board_->vgaFramebuffer();
+        constexpr auto rowBytes = VgaFrameModel::Width * 3;
+        if (vgaState.completedFrames != vga_->completedFrames()
+            && rgb.size() == static_cast<std::size_t>(rowBytes) * VgaFrameModel::Height) {
+            vgaImage = QImage(rgb.data(), VgaFrameModel::Width, VgaFrameModel::Height,
+                              rowBytes, QImage::Format_RGB888).copy();
+        }
+    }
+    const bool vgaChanged = vga_->stage(vgaState, std::move(vgaImage));
+
     const auto switchChanges = switches_->stageStates(switches);
     const auto ledChanges = leds_->stageStates(leds);
     const auto buttonChanges = buttons_->stageStates(buttons);
@@ -235,6 +257,7 @@ void BoardAdapter::publish(std::span<const UartConsoleModel::Byte> rx) {
     leds_->publishChanges(ledChanges);
     buttons_->publishChanges(buttonChanges);
     digits_->publishChanges(digitChanges);
+    vga_->publish(vgaChanged);
     uart_->publishCounters(uartUpdate.countersChanged);
     // List rows must be inserted during notification, so they publish last.
     publishUart(uartUpdate, rx);

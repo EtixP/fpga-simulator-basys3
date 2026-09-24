@@ -273,6 +273,7 @@ ApplicationWindow {
                     anchors.fill: parent
                     visible: !window.boardUnavailable && window.workspaceIndex === 0
                     board: window.board
+                    controller: window.controller
                     headingObjectName: visible ? "workspaceTitle" : ""
                     detailObjectName: visible ? "workspaceDetail" : ""
                 }
@@ -393,6 +394,18 @@ ApplicationWindow {
                 text: window.liveSimulation ? window.controller.virtualTimeText : ""
                 font.pixelSize: 11
                 color: window.palette.text
+            }
+            Label {
+                objectName: "simulationVgaFrame"
+                visible: window.boardConnected && window.board.vga.available
+                Layout.leftMargin: 12
+                text: !visible ? ""
+                    : window.board.vga.hasFrame
+                    ? qsTr("VGA frame %1 · cycle %2").arg(window.board.vga.completedFrames - 1)
+                        .arg(window.board.vga.frameCycleText)
+                    : qsTr("VGA: no complete frame yet")
+                font.pixelSize: 11
+                color: visible && !window.board.vga.ok ? "#f0b190" : window.palette.placeholderText
             }
             Item { Layout.fillWidth: true }
             Label {

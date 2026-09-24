@@ -66,9 +66,11 @@ int main(int argc, char* argv[]) {
     vb::qt::BoardAdapter boardAdapter(board.get());
     vb::qt::SimulationController controller(boardAdapter, QStringLiteral(VB_DESIGN_TITLE));
 #if VB_STARTUP_RESET
-    // uart_echo's two-flop receiver synchronizer powers up low, so without its
-    // btnC reset (R6) it decodes a false start bit and echoes 0xFF. Apply the
-    // Reset control's 16-cycle pulse once, as the legacy demos do at startup.
+    // Some examples need their btnC reset (R6) before their outputs mean
+    // anything: uart_echo's receiver synchronizer powers up low and decodes a
+    // false start bit; vga_pattern's syncs power up asserted, giving the monitor
+    // a false first edge. Apply the Reset control's 16-cycle pulse once, as the
+    // legacy demos do at startup.
     if (board && !controller.reset()) {
         qCritical() << "Cannot apply the startup reset:" << controller.errorString();
         return EXIT_FAILURE;

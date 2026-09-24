@@ -104,7 +104,9 @@ BoardModel batches, the controller event loop, and the same QML board with nativ
 rendering, then measure the rendered 1× target. Paths share a 16-cycle reset and
 2-million-cycle warmup; path order rotates between runs. Event-loop paths may
 slightly exceed the requested cycle count, so CSV records actual cycles and wall
-time. Frame counts are Qt presentations, not simulated VGA frames. Performance
+time. Frame counts are Qt presentations, not simulated VGA frames; since M6
+the CSV adds `vga_frames`, the simulated frames completed, and the benchmark
+also covers `vga_pattern` ([qt_vga.md](qt_vga.md)). Performance
 thresholds are deliberately absent from correctness tests.
 Set `VB_QT_SCREENSHOT_DIR` to capture paused rendered results after timing ends.
 

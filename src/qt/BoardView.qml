@@ -8,6 +8,7 @@ import VirtualBasys.Board
 Control {
     id: view
     required property BoardAdapter board
+    property SimulationController controller: null
     property string headingObjectName: "workspaceTitle"
     property string detailObjectName: "workspaceDetail"
     readonly property bool connected: board !== null && board.connected
@@ -48,6 +49,8 @@ Control {
         id: viewport
         objectName: "boardFlickable"
         clip: true
+        // Whole-pixel scrolling keeps the VGA monitor's pixels crisp.
+        pixelAligned: true
         contentWidth: Math.max(width, 744)
         contentHeight: contents.implicitHeight + 32
         boundsBehavior: Flickable.StopAtBounds
@@ -62,6 +65,19 @@ Control {
             y: 16
             width: viewport.contentWidth - 32
             spacing: 16
+
+            // Designs that drive all VGA pins get a monitor first, above the board.
+            Loader {
+                objectName: "vgaMonitorLoader"
+                Layout.fillWidth: true
+                active: view.board !== null && view.board.vga.available
+                visible: active
+                sourceComponent: VgaMonitor {
+                    objectName: "vgaMonitor"
+                    frame: view.board.vga
+                    controller: view.controller
+                }
+            }
 
             ColumnLayout {
                 Layout.fillWidth: true

@@ -8,19 +8,29 @@ Built with **C++20 and Verilator** for macOS; migration to **Qt 6 / Qt Quick** i
 | Area | Status |
 | --- | --- |
 | Simulator | Working XDC pin bindings, switches, LEDs, buttons, seven-segment display, UART, VGA, VCD traces and regression tests. Counter, stopwatch, UART echo and VGA pattern examples are included. |
-| Qt frontend — M0–M5 complete | Counter, stopwatch and UART echo launchers, resizable workspace, board controls, Run/Pause/Step/Reset, exact virtual time and measured speed. Turbo and best-effort real-time pacing. UART terminal with cycle-stamped TX/RX rows, send, hex view, clear and bounded scrollback. |
-| Next — M6 | VGA output in Qt. Inspector and log views follow. |
+| Qt frontend — M0–M6 complete | Counter, stopwatch, UART echo and VGA pattern launchers, resizable workspace, board controls, Run/Pause/Step/Reset, exact virtual time and measured speed. Turbo and best-effort real-time pacing. UART terminal with cycle-stamped TX/RX rows, send, hex view, clear and bounded scrollback. Pixel-exact VGA monitor showing each completed frame with its cycle and the monitor's signal diagnosis. |
+| Next — M7 | Inspector and log views. Layout polish and removal of the legacy GUI follow. |
 
-**Qt runs the built-in counter, stopwatch and UART echo designs**, each in its own
-launcher. Arbitrary design loading and the Qt VGA, inspector and log views are
-still pending. The existing ImGui demos remain available for VGA.
+**Qt runs all four built-in examples**, each in its own launcher. Loading
+arbitrary designs and the Qt inspector and log views are still pending; the
+legacy ImGui demos remain available.
 
-M5 verification: **33/33 full-suite checks**, **18/18 headless checks** and
-**15/15 Qt sanitizer checks**, with two independent reviews.
-[UART terminal](docs/qt_uart.md) · [Simulation controls](docs/qt_control.md) ·
-[Roadmap](docs/migration_plan.md)
+M6 verification: **36/36 full-suite checks**, **18/18 headless checks** and
+**18/18 Qt sanitizer checks**, with two independent reviews. The VGA
+test compares every screen pixel of the monitor with the RTL's pattern, both
+offscreen and natively on Metal.
+[VGA monitor](docs/qt_vga.md) · [UART terminal](docs/qt_uart.md) ·
+[Simulation controls](docs/qt_control.md) · [Roadmap](docs/migration_plan.md)
 
 ## Screenshots
+
+| VGA pattern in the Qt monitor | Monitor diagnosis after a mid-frame reset |
+| --- | --- |
+| ![Qt VGA monitor showing the pixel-exact colour-bar frame and its completion cycle](docs/screenshots/qt-vga-m6.png) | ![Qt VGA monitor reporting a signal problem in a frame cut short by reset](docs/screenshots/qt-vga-reset-m6.png) |
+
+Captured by the native VGA UI test running the real `vga_pattern` RTL. In the
+second image a reset interrupted the frame, and the monitor reports the uneven
+line period until the next clean frame.
 
 | UART echo in the Qt terminal | Reset during UART traffic |
 | --- | --- |
@@ -47,12 +57,14 @@ cmake --build build/qt -j 8
 ./build/qt/src/qt/virtualbasys_qt
 ./build/qt/src/qt/virtualbasys_qt_stopwatch
 ./build/qt/src/qt/virtualbasys_qt_uart
+./build/qt/src/qt/virtualbasys_qt_vga
 ```
 
 All start paused. Reset applies a 16-cycle board reset; virtual time continues.
-The UART launcher applies that reset once at startup, because the design needs
-it before receiving (it opens at cycle 16). Type in the UART tab, press Return,
-then Run or Step.
+The UART and VGA launchers apply that reset once at startup, because their
+designs need it (they open at cycle 16). Type in the UART tab, press Return,
+then Run or Step. The VGA monitor shows its first frame after about 3.25 million
+cycles.
 Use `--preview` for the unloaded board or `--realtime` for best-effort 1× pacing.
 
 Run tests with `ctest --test-dir build/qt --output-on-failure`.
