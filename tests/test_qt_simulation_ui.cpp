@@ -249,7 +249,9 @@ private slots:
         QVERIFY(ui_->click("uartTab"));
         QCOMPARE(text("outputTitle"), QStringLiteral("UART terminal unavailable"));
         QVERIFY(ui_->click("logsTab"));
-        QCOMPARE(text("outputTitle"), QStringLiteral("Log view unavailable"));
+        // Since M7 a connected board shows the event log, initially not recording.
+        QTRY_VERIFY(ui_->item("eventLogView")->isVisible());
+        QCOMPARE(text("logEmptyTitle"), QStringLiteral("Recording is off"));
         QVERIFY(ui_->click("overviewNav"));
         QVERIFY(ui_->click("runPauseButton"));
         QVERIFY(controller_->running());

@@ -23,6 +23,10 @@ ApplicationWindow {
     readonly property int defaultOutputIndex: uartReady ? 1 : 0
     property int outputIndex: defaultOutputIndex
     readonly property bool showUartTerminal: outputIndex === 1 && uartReady
+    readonly property bool showEventLog: outputIndex === 2 && boardConnected
+    readonly property string logUnavailableDetail: boardUnavailable
+        ? qsTr("The board connection could not be initialized, so there are no board events.")
+        : qsTr("No design is loaded. Cycle-stamped board events appear here once a design runs.")
     readonly property string uartUnavailableDetail: boardUnavailable
         ? qsTr("The board connection could not be initialized, so there is no UART to monitor.")
         : !boardConnected
@@ -289,9 +293,27 @@ ApplicationWindow {
                 title: qsTr("INSPECTOR")
                 EmptyState {
                     anchors.fill: parent
+                    visible: !window.boardConnected
                     compact: true
                     heading: qsTr("Nothing to inspect")
-                    detail: qsTr("Signal inspection will appear here when a design and inspector are available.")
+                    detail: window.boardUnavailable
+                        ? qsTr("The board connection could not be initialized.")
+                        : qsTr("Signal values appear here when a design is loaded.")
+                }
+                // Created only with a board: the panel binds to its models.
+                Loader {
+                    objectName: "inspectorLoader"
+                    anchors.fill: parent
+                    active: window.boardConnected
+                    visible: active
+                    // Anchored: a hidden Loader gets no layout size, and the
+                    // panel must still re-layout once it is shown.
+                    sourceComponent: InspectorPanel {
+                        objectName: "inspectorPanel"
+                        anchors.fill: parent
+                        board: window.board
+                        designStem: window.designFileStem
+                    }
                 }
             }
         }
@@ -330,26 +352,39 @@ ApplicationWindow {
                         ToolTip.text: qsTr("Hide the output panel")
                     }
                 }
-                EmptyState {
+                // A StackLayout sizes every page, shown or not, so a page shown
+                // for the first time is already in place (a plain layout would
+                // leave it over the tab bar until its next polish).
+                StackLayout {
+                    objectName: "outputStack"
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    visible: !window.showUartTerminal
-                    compact: true
-                    headingObjectName: visible ? "outputTitle" : ""
-                    detailObjectName: visible ? "outputDetail" : ""
-                    heading: [qsTr("No terminal session"), qsTr("UART terminal unavailable"),
-                              qsTr("Log view unavailable"), qsTr("No waveform open")][window.outputIndex]
-                    detail: [qsTr("Command execution is not available in this version."),
-                             window.uartUnavailableDetail,
-                             qsTr("Simulation logs are not displayed in this version."),
-                             qsTr("Waveform viewing is not available in this version.")][window.outputIndex]
-                }
-                UartTerminal {
-                    objectName: "uartTerminal"
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    visible: window.showUartTerminal
-                    board: window.board
+                    currentIndex: window.showUartTerminal ? 1 : window.showEventLog ? 2 : 0
+                    EmptyState {
+                        compact: true
+                        headingObjectName: visible ? "outputTitle" : ""
+                        detailObjectName: visible ? "outputDetail" : ""
+                        heading: [qsTr("No terminal session"), qsTr("UART terminal unavailable"),
+                                  qsTr("Log view unavailable"), qsTr("No waveform open")][window.outputIndex]
+                        detail: [qsTr("Command execution is not available in this version."),
+                                 window.uartUnavailableDetail,
+                                 window.logUnavailableDetail,
+                                 qsTr("Waveform viewing is not available in this version.")][window.outputIndex]
+                    }
+                    UartTerminal {
+                        objectName: "uartTerminal"
+                        board: window.board
+                    }
+                    // Kept alive while a board exists, so filters and rows persist.
+                    Loader {
+                        objectName: "eventLogLoader"
+                        active: window.boardConnected
+                        sourceComponent: EventLogView {
+                            objectName: "eventLogView"
+                            anchors.fill: parent
+                            board: window.board
+                        }
+                    }
                 }
             }
         }

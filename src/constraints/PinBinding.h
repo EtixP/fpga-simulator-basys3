@@ -5,6 +5,7 @@
 #include <map>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace vb {
@@ -37,6 +38,10 @@ public:
   }
 
   const BoundSignal* find(std::string_view resource) const;
+  // Every bound board resource and where it landed, sorted by resource name.
+  std::vector<std::pair<std::string, BoundSignal>> resources() const {
+    return {map_.begin(), map_.end()};
+  }
 
   // Drive/read one bit of the bound port. setPin is read-modify-write via
   // peek/poke (peek of an input returns the last poked value). Throws

@@ -8,21 +8,28 @@ Built with **C++20 and Verilator** for macOS; migration to **Qt 6 / Qt Quick** i
 | Area | Status |
 | --- | --- |
 | Simulator | Working XDC pin bindings, switches, LEDs, buttons, seven-segment display, UART, VGA, VCD traces and regression tests. Counter, stopwatch, UART echo and VGA pattern examples are included. |
-| Qt frontend — M0–M6 complete | Counter, stopwatch, UART echo and VGA pattern launchers, resizable workspace, board controls, Run/Pause/Step/Reset, exact virtual time and measured speed. Turbo and best-effort real-time pacing. UART terminal with cycle-stamped TX/RX rows, send, hex view, clear and bounded scrollback. Pixel-exact VGA monitor showing each completed frame with its cycle and the monitor's signal diagnosis. |
-| Next — M7 | Inspector and log views. Layout polish and removal of the legacy GUI follow. |
+| Qt frontend — M0–M7 complete | Counter, stopwatch, UART echo and VGA pattern launchers, resizable workspace, board controls, Run/Pause/Step/Reset, exact virtual time and measured speed. Turbo and best-effort real-time pacing. UART terminal with cycle-stamped TX/RX rows, send, hex view, clear and bounded scrollback. Pixel-exact VGA monitor showing each completed frame with its cycle and the monitor's signal diagnosis. Signal inspector with pin bindings, change highlighting and RTL watches; filterable, cycle-stamped event log. |
+| Next — M8 | Layout, theme and status polish, then a parity comparison and removal of the legacy GUI. |
 
 **Qt runs all four built-in examples**, each in its own launcher. Loading
-arbitrary designs and the Qt inspector and log views are still pending; the
-legacy ImGui demos remain available.
+arbitrary designs is still pending; the legacy ImGui demos remain available
+until M8.
 
-M6 verification: **36/36 full-suite checks**, **18/18 headless checks** and
-**18/18 Qt sanitizer checks**, with two independent reviews. The VGA
-test compares every screen pixel of the monitor with the RTL's pattern, both
-offscreen and natively on Metal.
-[VGA monitor](docs/qt_vga.md) · [UART terminal](docs/qt_uart.md) ·
-[Simulation controls](docs/qt_control.md) · [Roadmap](docs/migration_plan.md)
+M7 verification: **38/38 full-suite checks**, **18/18 headless checks** and
+**20/20 Qt sanitizer checks**, with two independent reviews.
+[Inspector and log](docs/qt_inspector_log.md) · [VGA monitor](docs/qt_vga.md) ·
+[UART terminal](docs/qt_uart.md) · [Simulation controls](docs/qt_control.md) ·
+[Roadmap](docs/migration_plan.md)
 
 ## Screenshots
+
+| Inspector with an RTL watch | Event log filtered to one LED |
+| --- | --- |
+| ![Qt inspector listing ports, pin bindings and a counter.count watch at cycle 30](docs/screenshots/qt-inspector-m7.png) | ![Qt event log recording counter LED events, filtered to LED 3](docs/screenshots/qt-event-log-m7.png) |
+
+Captured by the native inspector UI test running the real `counter` RTL. The
+inspector's values all come from one snapshot, and the highlighted rows changed
+in the last step. The log rows are the board's own structured log.
 
 | VGA pattern in the Qt monitor | Monitor diagnosis after a mid-frame reset |
 | --- | --- |

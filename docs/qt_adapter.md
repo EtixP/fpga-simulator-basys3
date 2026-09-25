@@ -48,7 +48,10 @@ until released through the same method. M5 adds `sendUartText(QString)` and
 `clearUart()` for the read-only `uart` terminal model, with the same thread and
 reentry guards; see [qt_uart.md](qt_uart.md). M6 adds the read-only `vga` frame
 model, which copies the framebuffer only when a new frame completes, and the
-`VgaDisplay` item; see [qt_vga.md](qt_vga.md).
+`VgaDisplay` item; see [qt_vga.md](qt_vga.md). M7 adds the `inspector` and
+`eventLog` models with their `inspectorView` and `eventLogView` filter proxies,
+and the `addWatch`, `removeWatch`, `setLogRecording` and `clearEventLog`
+methods; see [qt_inspector_log.md](qt_inspector_log.md).
 
 The C++-only `refresh()` reads a complete snapshot, stages all model caches,
 then publishes changed rows and roles. New UART terminal rows are inserted last,
@@ -60,8 +63,7 @@ Model reads never access BoardModel. Refresh does not call `tick`, including
 `tick(0)`, and never advances cycles or consumes queued UART edges. LED reads can
 settle pending combinational/asynchronous logic through BoardModel's normal peek
 semantics. Display fusion, decoding and virtual-time persistence remain in the
-backend. Scheduling and physical reset are separate controller commands. Log
-and inspector presentation APIs remain later work. No BoardModel,
+backend. Scheduling and physical reset are separate controller commands. No BoardModel,
 binding, signal handle or engine object is exposed to QML.
 
 ## Verification and performance

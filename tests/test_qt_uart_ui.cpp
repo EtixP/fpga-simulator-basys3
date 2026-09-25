@@ -232,9 +232,10 @@ private slots:
         QVERIFY(text("uartEmptyDetail").contains(QStringLiteral("press Send")));
         QVERIFY(!ui_->item("uartClearButton")->isEnabled());
         QCOMPARE(ui_->board.now(), uint64_t{16});
-        // The other output tabs keep their placeholders; UART returns intact.
+        // Other output tabs show their own views; UART returns intact.
         QVERIFY(ui_->click("logsTab"));
-        QCOMPARE(text("outputTitle"), QStringLiteral("Log view unavailable"));
+        QTRY_VERIFY(ui_->item("eventLogView")->isVisible());
+        QCOMPARE(text("logEmptyTitle"), QStringLiteral("Recording is off"));
         QVERIFY(!ui_->item("uartTerminal")->isVisible());
         QVERIFY(ui_->click("uartTab"));
         QTRY_VERIFY(ui_->item("uartTerminal")->isVisible());

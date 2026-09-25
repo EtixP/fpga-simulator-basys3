@@ -126,7 +126,19 @@ public:
   bool vgaOk() const;
   const std::string& vgaStatus() const;
 
+  // --- signal inspection (read-only) -----------------------------------------
+  // The design's supported top-level ports (SimEngine::ports(), sorted by
+  // name) and best-effort hierarchical RTL names rooted at the top module
+  // ("counter.count"). Reads have peek semantics: pending inputs settle, the
+  // clock never toggles and time never advances. Signal handles are for C++
+  // frontends' own use and must never reach QML.
+  std::vector<SignalInfo> designPorts() const { return engine_.ports(); }
+  SignalId findSignal(std::string_view name) { return engine_.lookup(name); }
+  SignalInfo signalInfo(SignalId id) const { return engine_.info(id); }
+  uint64_t readSignal(SignalId id) { return engine_.peek(id); }
+
   // --- structured log (R3) ---------------------------------------------------
+  bool logEnabled() const { return log_.enabled(); }
   void setLogEnabled(bool on) { log_.setEnabled(on); }
   const std::vector<std::string>& structuredLog() const { return log_.lines(); }
   void clearLog() { log_.clear(); }

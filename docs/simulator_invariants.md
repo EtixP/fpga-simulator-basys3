@@ -99,6 +99,12 @@ PASS reviews on 2026-09-18. Qt migration must preserve this contract.
 - At grid crossings: SSEG digits ascending (character then DP), LEDs ascending,
   UART TX byte/error, then UART RX edges. Caller input transitions follow in call
   order at exact now(); per-bit RX transitions and VGA frames are not logged.
+- Read-only inspection goes through BoardModel: designPorts, findSignal,
+  signalInfo and readSignal pass through SimEngine ports, lookup, info and peek
+  unchanged (peek semantics; best-effort hierarchical names). Handles stay C++.
+- While a frontend records the structured log, it owns it: it clears earlier
+  lines, drains and clears new lines on each refresh, and restores the previous
+  enable state when it stops. Emission order and stamps are unchanged.
 - Package pins identify board resources independently of port names. HDL declared
   indices map to packed offsets, including ascending/nonzero/signed ranges; only
   top-level ports bind. Default Basys mapping matches all 105 pristine master pins.
