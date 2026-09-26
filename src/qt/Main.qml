@@ -19,8 +19,9 @@ ApplicationWindow {
     readonly property bool boardUnavailable: board === null
     readonly property bool liveSimulation: controller !== null && controller.connected
     readonly property bool uartReady: boardConnected && board.uart !== null && board.uart.available
-    // Designs that bind the USB-UART pins open on their terminal.
-    readonly property int defaultOutputIndex: uartReady ? 1 : 0
+    // Designs that bind the USB-UART pins open on their terminal; other loaded
+    // designs on their event log. Without a design, the first tab.
+    readonly property int defaultOutputIndex: uartReady ? 1 : boardConnected ? 2 : 0
     property int outputIndex: defaultOutputIndex
     readonly property bool showUartTerminal: outputIndex === 1 && uartReady
     readonly property bool showEventLog: outputIndex === 2 && boardConnected
@@ -37,17 +38,24 @@ ApplicationWindow {
     minimumWidth: 960
     minimumHeight: 640
     visible: true
-    title: qsTr("VirtualBasys")
+    title: liveSimulation ? qsTr("VirtualBasys — %1").arg(controller.designName) : qsTr("VirtualBasys")
     color: palette.window
     font.family: "Helvetica Neue"
     font.pixelSize: 13
     palette.window: "#101720"
     palette.base: "#121c27"
     palette.alternateBase: "#192633"
-    palette.text: "#dce7f0"
-    palette.windowText: "#dce7f0"
+    // Text roles per color group: disabled controls must look disabled.
+    palette.active.text: "#dce7f0"
+    palette.inactive.text: "#dce7f0"
+    palette.disabled.text: "#687a8c"
+    palette.active.windowText: "#dce7f0"
+    palette.inactive.windowText: "#dce7f0"
+    palette.disabled.windowText: "#687a8c"
     palette.button: "#233445"
-    palette.buttonText: "#dce7f0"
+    palette.active.buttonText: "#dce7f0"
+    palette.inactive.buttonText: "#dce7f0"
+    palette.disabled.buttonText: "#687a8c"
     palette.highlight: "#248b85"
     palette.highlightedText: "#ffffff"
     palette.light: "#536477"
@@ -408,7 +416,8 @@ ApplicationWindow {
             Label {
                 objectName: "simulationStatus"
                 text: window.liveSimulation
-                    ? window.controller.designName + " · " + (window.controller.running ? qsTr("Running") : qsTr("Paused"))
+                    ? window.controller.designName + " · " + (window.controller.finished ? qsTr("Finished")
+                        : window.controller.running ? qsTr("Running") : qsTr("Paused"))
                     : window.boardUnavailable ? qsTr("Board unavailable") : window.boardConnected
                       ? qsTr("Board connected") : qsTr("No design loaded")
                 font.pixelSize: 11
@@ -429,6 +438,18 @@ ApplicationWindow {
                 text: window.liveSimulation ? window.controller.virtualTimeText : ""
                 font.pixelSize: 11
                 color: window.palette.text
+            }
+            Label {
+                objectName: "simulationScript"
+                visible: window.liveSimulation && window.controller.scripted
+                Layout.leftMargin: 12
+                text: !visible ? ""
+                    : window.controller.finished ? qsTr("Scripted run complete")
+                    : window.controller.endCycleText.length > 0
+                    ? qsTr("Scripted run · ends at cycle %1").arg(window.controller.endCycleText)
+                    : qsTr("Scripted run")
+                font.pixelSize: 11
+                color: window.palette.placeholderText
             }
             Label {
                 objectName: "simulationVgaFrame"

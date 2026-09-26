@@ -1,12 +1,12 @@
-#include "gui/GuiApp.h"
+#include "script/RunOptions.h"
 
 #include <algorithm>
 #include <charconv>
 
 namespace vb {
 
-DemoArgs parseDemoArgs(int argc, char** argv, std::string defaultXdc) {
-  DemoArgs out;
+RunArgs parseRunArgs(int argc, char** argv, std::string defaultXdc) {
+  RunArgs out;
   out.xdcPath = std::move(defaultXdc);
   std::vector<std::string> atSpecs;
   for (int i = 1; i < argc; ++i) {
@@ -21,11 +21,11 @@ DemoArgs parseDemoArgs(int argc, char** argv, std::string defaultXdc) {
       if (res.ec != std::errc{} || res.ptr != v.data() + v.size() || frames < 0)
         out.errors.push_back("--frames '" + v + "': expected a non-negative integer");
       else
-        out.gui.maxFrames = frames;
+        out.run.maxFrames = frames;
     } else if (arg == "--screenshot" && hasValue) {
-      out.gui.screenshotPath = argv[++i];
+      out.run.screenshotPath = argv[++i];
     } else if (arg == "--log" && hasValue) {
-      out.gui.logPath = argv[++i];
+      out.run.logPath = argv[++i];
     } else if (arg == "--at" && hasValue) {
       atSpecs.push_back(argv[++i]);
     } else if (arg == "--send" && hasValue) {
@@ -40,7 +40,7 @@ DemoArgs parseDemoArgs(int argc, char** argv, std::string defaultXdc) {
         out.errors.push_back("--send '" + spec + "': expected CYCLE:TEXT");
       } else {
         e.text = spec.substr(colon + 1);
-        out.gui.sends.push_back(std::move(e));
+        out.run.sends.push_back(std::move(e));
       }
     } else if (arg == "--switches" && hasValue) {
       // Rightmost character is SW0; sugar for --at 0:SWn=1. Validate here so
@@ -62,9 +62,9 @@ DemoArgs parseDemoArgs(int argc, char** argv, std::string defaultXdc) {
     }
   }
   StimulusParse parsed = parseStimulus(atSpecs);
-  out.gui.stimulus = std::move(parsed.events);
+  out.run.stimulus = std::move(parsed.events);
   for (auto& e : parsed.errors) out.errors.push_back(std::move(e));
-  std::stable_sort(out.gui.sends.begin(), out.gui.sends.end(),
+  std::stable_sort(out.run.sends.begin(), out.run.sends.end(),
                    [](const SendEvent& a, const SendEvent& b) { return a.cycle < b.cycle; });
   return out;
 }

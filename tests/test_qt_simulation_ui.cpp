@@ -2,6 +2,7 @@
 // controller clocks test presentation; one case exercises the real Qt timer.
 #include "Vcounter.h"
 #include "qt_board_ui_fixture.h"
+#include "script/RunOptions.h"
 
 #include <QStyleHints>
 #include <QtQml/qqmlextensionplugin.h>
@@ -18,6 +19,13 @@ class SimulationUiTest final : public QObject {
     QString text(const char* name) const {
         const auto* item = ui_->item(name);
         return item ? item->property("text").toString() : QString();
+    }
+
+    // Captures park the pointer on the header logo so no hover tooltip shows.
+    bool capture(const char* name) const {
+        QTest::mouseMove(ui_->window, QPoint(8, 8));
+        QTest::qWait(150);
+        return ui_->capture(name);
     }
 
     uint16_t displayedLeds() const {
@@ -110,6 +118,12 @@ private slots:
 
     void initialStateAndExactStepThroughKeyboardAndMouse() {
         QCOMPARE(text("projectDesignName"), QStringLiteral("Counter"));
+        QCOMPARE(ui_->window->title(), QStringLiteral("VirtualBasys — Counter"));
+        QCOMPARE(ui_->item("stepButton")->property("contentItem").value<QQuickItem*>()
+                     ->property("color").value<QColor>(), QColor(QStringLiteral("#dce7f0")));
+        // A design without the USB-UART pins opens on its event log.
+        QCOMPARE(ui_->window->property("outputIndex").toInt(), 2);
+        QTRY_VERIFY(ui_->item("eventLogView") && ui_->item("eventLogView")->isVisible());
         QCOMPARE(text("projectDesignFiles"), QStringLiteral("examples/counter.v\nexamples/counter.xdc"));
         QCOMPARE(text("runPauseButton"), QStringLiteral("Run"));
         QVERIFY(text("simulationStatus").contains(QStringLiteral("Paused")));
@@ -132,7 +146,7 @@ private slots:
         QCOMPARE(text("simulationTime"), QStringLiteral("0.000000320 s"));
         QTest::qWait(20);
         QCOMPARE(ui_->board.now(), uint64_t{32});
-        QVERIFY(ui_->capture("simulation-counter-paused"));
+        QVERIFY(capture("simulation-counter-paused"));
     }
 
     void runPauseStateAndMeasuredSpeedAreAuthoritative() {
@@ -176,7 +190,7 @@ private slots:
         QTRY_VERIFY(ui_->board.now() > 0);
         QTRY_VERIFY(controller_->cycleText() != QStringLiteral("0"));
         QTRY_VERIFY(controller_->speedAvailable());
-        QVERIFY(ui_->capture("simulation-counter-running"));
+        QVERIFY(capture("simulation-counter-running"));
         QVERIFY(ui_->click("runPauseButton"));
         QVERIFY(!controller_->running());
         const auto pausedCycle = ui_->board.now();
@@ -216,6 +230,60 @@ private slots:
         QVERIFY(ui_->board.buttonState(vb::Button::C));
         QVERIFY(ui_->release("button0"));
         QVERIFY(!ui_->board.buttonState(vb::Button::C));
+    }
+
+    // A launcher's scripted run: the footer shows where it ends, and once it
+    // has, nothing can advance it.
+    void scriptedRunShowsItsEndAndStops() {
+        const char* argv[] = {"launcher", "--frames", "2", "--switches", "0101"};
+        auto run = vb::parseRunArgs(5, const_cast<char**>(argv), {});
+        QVERIFY(run.errors.empty());
+        QVERIFY(controller_->startScript(run.run));
+        QCOMPARE(ui_->board.now(), uint64_t{16});  // the startup reset
+        QTRY_COMPARE(text("simulationScript"), QStringLiteral("Scripted run · ends at cycle 200016"));
+        QVERIFY(ui_->item("simulationScript")->isVisible());
+        QCOMPARE(text("simulationStatus"), QStringLiteral("Counter · Paused"));
+        QCOMPARE(text("simulationCycles"), QStringLiteral("16 cycles"));
+        QVERIFY(ui_->click("runPauseButton"));
+        QCOMPARE(text("runPauseButton"), QStringLiteral("Pause"));
+        for (int batch = 0; batch < 10 && controller_->running(); ++batch) {
+            wallNanoseconds_ += 20'000'000;
+            controller_->processBatch();
+        }
+        QCOMPARE(ui_->board.now(), uint64_t{200016});
+        QTRY_COMPARE(text("simulationStatus"), QStringLiteral("Counter · Finished"));
+        QCOMPARE(text("simulationScript"), QStringLiteral("Scripted run complete"));
+        QCOMPARE(text("simulationCycles"), QStringLiteral("200016 cycles"));
+        for (const char* control : {"runPauseButton", "stepButton", "stepCycles", "resetButton"})
+            QVERIFY2(!ui_->item(control)->isEnabled(), control);
+        QVERIFY(!ui_->item("runPauseButton")->property("highlighted").toBool());
+        // Disabled controls look disabled, not only refuse clicks.
+        const auto textColor = [this](const char* name) {
+            return ui_->item(name)->property("contentItem").value<QQuickItem*>()->property("color").value<QColor>();
+        };
+        QCOMPARE(textColor("stepButton"), QColor(QStringLiteral("#687a8c")));
+        QCOMPARE(textColor("stepCycles"), QColor(QStringLiteral("#687a8c")));  // palette text
+        QCOMPARE(textColor("resetButton"), QColor(QStringLiteral("#687a8c")));
+        QVERIFY(!ui_->click("runPauseButton"));
+        auto* script = ui_->item("simulationScript");
+        QVERIFY(script->property("contentWidth").toReal() <= script->width() + 1);
+        QVERIFY(capture("simulation-scripted-finished"));
+    }
+
+    // Without --frames a scripted run has no end.
+    void unlimitedScriptedRunKeepsRunning() {
+        const char* argv[] = {"launcher", "--switches", "1"};
+        auto run = vb::parseRunArgs(3, const_cast<char**>(argv), {});
+        QVERIFY(controller_->startScript(run.run));
+        QTRY_COMPARE(text("simulationScript"), QStringLiteral("Scripted run"));
+        QVERIFY(ui_->click("runPauseButton"));
+        for (int batch = 0; batch < 3; ++batch) {
+            wallNanoseconds_ += 20'000'000;
+            controller_->processBatch();
+        }
+        QCOMPARE(ui_->board.now(), uint64_t{300016});
+        QCOMPARE(text("simulationStatus"), QStringLiteral("Counter · Running"));
+        QCOMPARE(text("simulationScript"), QStringLiteral("Scripted run"));
     }
 
     void pacingSelectorFollowsUserAndControllerState() {
@@ -259,7 +327,7 @@ private slots:
         QVERIFY(!controller_->running());
         QVERIFY(ui_->click("boardNav"));
         QCOMPARE(ui_->board.now(), uint64_t{0});
-        QVERIFY(ui_->capture("simulation-counter-minimum"));
+        QVERIFY(capture("simulation-counter-minimum"));
     }
 };
 

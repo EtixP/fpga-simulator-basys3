@@ -42,10 +42,11 @@ target_link_libraries(vb_board PUBLIC vb_constraints)
 # hot-path reason as vb_engine (above).
 target_compile_options(vb_board PRIVATE -O2)
 
-# Scripted stimulus + demo CLI parsing: pure C++ (no SDL/ImGui), built
-# unconditionally so headless tests cover it even with VB_BUILD_GUI=OFF.
-add_library(vb_stimulus STATIC gui/Stimulus.cpp gui/DemoCli.cpp gui/GuiRunner.cpp)
-target_link_libraries(vb_stimulus PUBLIC vb_board)
+# Scripted runs shared by the frontends: stimulus, launcher CLI parsing and
+# the scheduler. Pure C++ over BoardModel, built unconditionally so headless
+# tests cover it without any frontend.
+add_library(vb_script STATIC script/Stimulus.cpp script/RunArgs.cpp script/ScriptRunner.cpp)
+target_link_libraries(vb_script PUBLIC vb_board)
 
 # --- GUI: Dear ImGui (submodule @ v1.92.8) + SDL2 + Metal -------------------
 if(VB_BUILD_GUI AND APPLE)
@@ -75,7 +76,7 @@ if(VB_BUILD_GUI AND APPLE)
   # Window plumbing + draw code, engine-free (sees BoardModel only).
   add_library(vb_gui STATIC gui/GuiApp.mm gui/BoardWindow.cpp)
   set_source_files_properties(gui/GuiApp.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
-  target_link_libraries(vb_gui PUBLIC vb_stimulus vb_board vb_imgui)
+  target_link_libraries(vb_gui PUBLIC vb_script vb_board vb_imgui)
 
   # One demo executable per verilated design (decision log); interim until
   # the phase-2 `virtualbasys run` CLI subsumes them.

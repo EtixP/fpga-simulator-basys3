@@ -1,11 +1,11 @@
-// The exact scheduler used by the GUI, exercised without a window. A tiny
+// The exact scheduler used by the frontends, exercised without a window. A tiny
 // recording engine exposes the inputs at every rising edge independently
 // of the scheduler and the BoardModel structured log.
 #include "board/BoardModel.h"
 #include "check.h"
 #include "constraints/Xdc.h"
-#include "gui/GuiApp.h"
-#include "gui/GuiRunner.h"
+#include "script/RunOptions.h"
+#include "script/ScriptRunner.h"
 
 #include <algorithm>
 #include <array>
@@ -82,7 +82,7 @@ bool hasLog(const vb::BoardModel& board, const std::string& line) {
 void checkEarlyEventsAndHorizon() {
   RecordingEngine engine;
   vb::BoardModel board(engine, binding(engine));
-  vb::GuiOptions opts;
+  vb::RunOptions opts;
   opts.logPath = "enabled-without-writing-a-file";
   opts.stimulus = {{0, "BTNC", false}, {0, "SW0", true}, {8, "SW0", false},
                    {16, "SW1", true}, {17, "SW1", false},
@@ -90,7 +90,7 @@ void checkEarlyEventsAndHorizon() {
                    {1017, "SW0", true}};
   opts.sends = {{0, "K"}, {8, "!"}, {16, "?"}, {200'000, "later"}};
   vb::ScriptCursor cursor;
-  vb::initializeDemoRun(board, opts, cursor);
+  vb::initializeScriptedRun(board, opts, cursor);
   CHECK_EQ(board.now(), 16);
   CHECK_EQ(engine.peek(engine.lookup("led")), 8);
   CHECK_EQ(cursor.event, 4);
@@ -133,10 +133,10 @@ void checkResetAndZeroFrames() {
   {
     RecordingEngine engine;
     vb::BoardModel board(engine, binding(engine));
-    vb::GuiOptions opts;
+    vb::RunOptions opts;
     opts.logPath = "enabled";
     vb::ScriptCursor cursor;
-    vb::initializeDemoRun(board, opts, cursor);
+    vb::initializeScriptedRun(board, opts, cursor);
     CHECK_EQ(board.now(), 16);
     CHECK(!board.buttonState(vb::Button::C));
     CHECK(hasLog(board, "[cycle 0] BTNC 0->1"));
@@ -146,10 +146,10 @@ void checkResetAndZeroFrames() {
   {
     RecordingEngine engine;
     vb::BoardModel board(engine, binding(engine));
-    vb::GuiOptions opts;
+    vb::RunOptions opts;
     opts.stimulus = {{8, "BTNC", true}, {20, "BTNC", false}};
     vb::ScriptCursor cursor;
-    vb::initializeDemoRun(board, opts, cursor);
+    vb::initializeScriptedRun(board, opts, cursor);
     CHECK(board.buttonState(vb::Button::C));  // explicit hold survives automatic tail
     vb::advanceScripted(board, opts, cursor, 5);
     for (size_t i = 0; i < 20; ++i) CHECK(engine.edges[i].reset);
@@ -158,13 +158,13 @@ void checkResetAndZeroFrames() {
   {
     RecordingEngine engine;
     vb::BoardModel board(engine, binding(engine));
-    vb::GuiOptions opts;
+    vb::RunOptions opts;
     opts.maxFrames = 0;
     opts.logPath = "enabled";
     opts.stimulus = {{0, "SW0", true}};
     opts.sends = {{0, "K"}};
     vb::ScriptCursor cursor;
-    vb::initializeDemoRun(board, opts, cursor);
+    vb::initializeScriptedRun(board, opts, cursor);
     CHECK_EQ(board.now(), 0);
     CHECK(engine.edges.empty());
     CHECK_EQ(cursor.event, 0);
@@ -176,7 +176,7 @@ void checkResetAndZeroFrames() {
 }
 
 void checkChunkInvariance() {
-  vb::GuiOptions opts;
+  vb::RunOptions opts;
   opts.logPath = "enabled";
   opts.stimulus = {{0, "SW0", true}, {7, "SW0", false}, {16, "SW1", true},
                    {17, "SW1", false}, {999, "SW0", true}, {1000, "SW0", false},
@@ -185,8 +185,8 @@ void checkChunkInvariance() {
   RecordingEngine a, b;
   vb::BoardModel whole(a, binding(a)), split(b, binding(b));
   vb::ScriptCursor ca, cb;
-  vb::initializeDemoRun(whole, opts, ca);
-  vb::initializeDemoRun(split, opts, cb);
+  vb::initializeScriptedRun(whole, opts, ca);
+  vb::initializeScriptedRun(split, opts, cb);
   vb::advanceScripted(whole, opts, ca, 220000);
   constexpr std::array<uint64_t, 6> chunks{1, 997, 3, 1000, 10417, 19};
   for (size_t part = 0; split.now() < whole.now(); ++part)
@@ -207,5 +207,5 @@ int main() {
   checkEarlyEventsAndHorizon();
   checkResetAndZeroFrames();
   checkChunkInvariance();
-  std::puts("test_gui_runner: PASS");
+  std::puts("test_script_runner: PASS");
 }

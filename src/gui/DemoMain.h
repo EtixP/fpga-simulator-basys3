@@ -26,11 +26,11 @@ inline std::string demoReadFile(const std::string& path) {
 template <class VModel>
 int runDemo(int argc, char** argv, const char* topModule, const char* title,
             const char* defaultXdc, uint64_t cyclesPerFrame = 100'000) {
-  DemoArgs args = parseDemoArgs(argc, argv, defaultXdc);
+  RunArgs args = parseRunArgs(argc, argv, defaultXdc);
   for (const auto& e : args.errors) std::fprintf(stderr, "error: %s\n", e.c_str());
   if (!args.errors.empty()) return 1;
-  args.gui.windowTitle = title;
-  args.gui.cyclesPerFrame = cyclesPerFrame;  // demo-local (VGA uses ~1 frame/tick)
+  args.run.windowTitle = title;
+  args.run.cyclesPerFrame = cyclesPerFrame;  // demo-local (VGA uses ~1 frame/tick)
 
   const std::string xdcText = demoReadFile(args.xdcPath);
   if (xdcText.empty()) {
@@ -46,7 +46,7 @@ int runDemo(int argc, char** argv, const char* topModule, const char* title,
   BoardModel board(*engine, std::move(binding));
   // The shared GUI runner performs reset and scripts together from cycle 0,
   // preserving early script timing and including startup inputs in the log.
-  return runBoardGui(board, args.gui);
+  return runBoardGui(board, args.run);
 }
 
 }  // namespace vb

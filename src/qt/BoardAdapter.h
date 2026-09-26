@@ -17,6 +17,7 @@
 #include <deque>
 #include <optional>
 #include <span>
+#include <string_view>
 #include <vector>
 
 class QThread;
@@ -91,7 +92,8 @@ public:
     // clears earlier lines, enables collection, and drains then clears new
     // lines on every refresh, so the board's log memory stays bounded.
     // Stopping drains the remaining lines and restores the previous enable
-    // state. Recording and its notices never advance time.
+    // state. Recording and its notices never advance time. With a retained
+    // board log (below), the view reads the same lines without clearing any.
     Q_INVOKABLE bool setLogRecording(bool on);
     // Empties the log view only; recording continues.
     Q_INVOKABLE bool clearEventLog();
@@ -101,6 +103,10 @@ public:
     // inputs via the board's normal peek semantics, without advancing time.
     // Stage every model before notifying; reject reentrant writes/refreshes.
     bool refresh();
+    // C++ only, before recording starts: another owner keeps the board's whole
+    // structured log (a launcher writing --log FILE), so the view never clears
+    // it and the board's log grows for that owner. Returns false while recording.
+    bool setBoardLogRetained(bool retained);
 
 private:
     // The scheduling peer must reject stepping during synchronous model
@@ -111,6 +117,12 @@ private:
     // publish unshown UART traffic with a notice ordered after everything
     // stamped at or before `cycle`, so the order never depends on refreshes.
     void noteReset(uint64_t cycle, uint64_t cycles);
+    // Controller seam for a scripted --send at the current cycle: queues every
+    // byte exactly as BoardModel::sendUartText does, without the terminal's
+    // size and encoding checks. Like a typed send, the bytes form one RX row
+    // stamped with their first start bit and placed at the cycle they were
+    // sent: after every TX byte stamped at or before it, whenever refreshes run.
+    void sendScriptedUart(std::string_view text);
 
     struct UartUpdate {
         bool countersChanged = false;
@@ -145,10 +157,17 @@ private:
     EventFilterModel* const eventLogView_;
     std::vector<SignalId> inspectorIds_;  // parallel to inspector rows; C++ only
     bool logWasEnabled_ = false;
+    bool logRetained_ = false;
+    std::size_t logRead_ = 0;  // retained log: lines the view has already read
     std::size_t uartTxSeen_ = 0;
     std::size_t uartFramingSeen_ = 0;
     qint64 uartRxQueued_ = 0;
     std::deque<uint64_t> uartRxFrameEnds_;  // queued frames still on the line
+    struct ScriptedSend {
+        uint64_t sent = 0;  // the cycle the script sent it
+        std::vector<UartConsoleModel::Byte> bytes;
+    };
+    std::vector<ScriptedSend> scriptedRx_;  // unshown scripted sends
     bool publishing_ = false;
 };
 

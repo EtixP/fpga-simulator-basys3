@@ -94,7 +94,9 @@ QString bindingSummary(std::vector<std::pair<uint32_t, QString>> resources) {
 
 BoardAdapter::~BoardAdapter() {
     if (!board_ || !eventLog_->recording()) return;
-    board_->clearLog();  // this view's undrained lines are not the board owner's
+    // This view's undrained lines are not the board owner's, unless an owner
+    // retains the whole log.
+    if (!logRetained_) board_->clearLog();
     board_->setLogEnabled(logWasEnabled_);
 }
 
@@ -185,14 +187,25 @@ std::vector<EventLogModel::Event> BoardAdapter::drainLog() {
     std::vector<EventLogModel::Event> events;
     if (!board_ || !eventLog_->recording()) return events;
     const auto& lines = board_->structuredLog();
-    events.reserve(lines.size());
-    for (const auto& line : lines) {
+    const std::size_t first = logRetained_ ? std::min(logRead_, lines.size()) : 0;
+    events.reserve(lines.size() - first);
+    for (std::size_t i = first; i < lines.size(); ++i) {
         EventLogModel::Event event;
-        if (EventLogModel::parseLine(line, event)) events.push_back(std::move(event));
+        if (EventLogModel::parseLine(lines[i], event)) events.push_back(std::move(event));
     }
     // The view owns the log while recording: keep the board's copy bounded.
-    board_->clearLog();
+    // A retained log belongs to another owner; only remember what was read.
+    if (logRetained_)
+        logRead_ = lines.size();
+    else
+        board_->clearLog();
     return events;
+}
+
+bool BoardAdapter::setBoardLogRetained(bool retained) {
+    if (!canAccessBoard() || eventLog_->recording()) return false;
+    logRetained_ = retained;
+    return true;
 }
 
 bool BoardAdapter::setLogRecording(bool on) {
@@ -202,7 +215,11 @@ bool BoardAdapter::setLogRecording(bool on) {
     std::vector<EventLogModel::Event> events;
     if (on) {
         logWasEnabled_ = board_->logEnabled();
-        board_->clearLog();  // earlier lines were not recorded by this view
+        // Earlier lines were not recorded by this view.
+        if (logRetained_)
+            logRead_ = board_->structuredLog().size();
+        else
+            board_->clearLog();
         board_->setLogEnabled(true);
         events.push_back({EventLogModel::Notice, cycle,
                           tr("Recording started at cycle %1").arg(cycle)});
@@ -267,8 +284,9 @@ bool BoardAdapter::sendUartText(const QString& text) {
     const uint64_t now = board_->now();
     while (!uartRxFrameEnds_.empty() && uartRxFrameEnds_.front() <= now)
         uartRxFrameEnds_.pop_front();
-    const auto space = UartConsoleModel::MaximumPendingRxBytes
-        - static_cast<qsizetype>(uartRxFrameEnds_.size());
+    // Scripted sends (launcher --send) are not limited, so the queue may be over-full.
+    const auto space = std::max<qsizetype>(0, UartConsoleModel::MaximumPendingRxBytes
+        - static_cast<qsizetype>(uartRxFrameEnds_.size()));
     if (bytes.size() > space) {
         return rejectUartSend(tr("Not sent: needs %1 B of transmit-queue space, but only %2 of "
                                  "%3 B are free. Run or step to transmit queued input.")
@@ -300,10 +318,26 @@ bool BoardAdapter::clearUart() {
     // Traffic decoded before the click is cleared too, however long ago the
     // last refresh ran; only later traffic can appear afterwards.
     const auto update = stageUart();
+    scriptedRx_.clear();
     uart_->publishCounters(update.countersChanged);
     uart_->clearLines();
     uart_->setSendError({});
     return true;
+}
+
+void BoardAdapter::sendScriptedUart(std::string_view text) {
+    // BoardModel ignores sends without a receive pin; so does this record.
+    if (!board_ || !board_->hasUartRx() || text.empty()) return;
+    std::vector<UartConsoleModel::Byte> sent;
+    sent.reserve(text.size());
+    for (const char character : text) {
+        const auto value = static_cast<uint8_t>(character);
+        const uint64_t start = board_->sendUart(value);
+        sent.push_back({value, start});
+        uartRxFrameEnds_.push_back(start + 10 * kUartCyclesPerBit);
+    }
+    uartRxQueued_ += static_cast<qint64>(text.size());
+    scriptedRx_.push_back({board_->now(), std::move(sent)});
 }
 
 void BoardAdapter::noteReset(uint64_t cycle, uint64_t cycles) {
@@ -348,23 +382,38 @@ void BoardAdapter::publishUart(const UartUpdate& update,
                                std::span<const UartConsoleModel::Byte> rx,
                                const std::optional<UartNotice>& reset) {
     // Order by stamp. One grid sample yields a byte or a framing error, never
-    // both; a reset notice follows everything stamped at or before its start.
-    std::vector<UartNotice> notices;
+    // both; a reset notice follows everything stamped at or before its start,
+    // and a scripted send follows everything stamped at or before the cycle it
+    // was sent (its row still shows its first start bit, which may be later
+    // when earlier input is queued, exactly as for a typed send).
+    struct Marker {
+        uint64_t cycle = 0;
+        QString notice;
+        std::span<const UartConsoleModel::Byte> rx;  // a scripted send when set
+    };
+    std::vector<Marker> markers;
     for (const uint64_t cycle : update.framingErrors)
-        notices.push_back({cycle, tr("Framing error: stop bit sampled low")});
-    if (reset) notices.push_back(*reset);
-    std::stable_sort(notices.begin(), notices.end(),
+        markers.push_back({cycle, tr("Framing error: stop bit sampled low"), {}});
+    if (reset) markers.push_back({reset->cycle, reset->text, {}});
+    for (const auto& send : scriptedRx_) markers.push_back({send.sent, {}, send.bytes});
+    std::stable_sort(markers.begin(), markers.end(),
                      [](const auto& a, const auto& b) { return a.cycle < b.cycle; });
     std::span<const UartConsoleModel::Byte> tx(update.tx);
-    for (const auto& notice : notices) {
+    for (const auto& marker : markers) {
         const auto split = std::find_if(tx.begin(), tx.end(), [&](const auto& byte) {
-            return byte.cycle > notice.cycle;
+            return byte.cycle > marker.cycle;
         });
         const auto before = static_cast<std::size_t>(split - tx.begin());
         uart_->appendTraffic(UartConsoleModel::Tx, tx.first(before));
-        uart_->appendNotice(notice.text, notice.cycle);
+        if (marker.rx.empty()) {
+            uart_->appendNotice(marker.notice, marker.cycle);
+        } else {
+            uart_->endLine();
+            uart_->appendTraffic(UartConsoleModel::Rx, marker.rx);
+        }
         tx = tx.subspan(before);
     }
+    scriptedRx_.clear();
     uart_->appendTraffic(UartConsoleModel::Tx, tx);
     if (!rx.empty()) {
         // Each send starts a row stamped with its own first start bit.

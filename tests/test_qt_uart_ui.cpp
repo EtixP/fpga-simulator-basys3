@@ -3,6 +3,7 @@
 // are the oracle: the terminal must mirror them exactly, in order.
 #include "Vuart_echo.h"
 #include "qt_board_ui_fixture.h"
+#include "script/RunOptions.h"
 
 #include <QStyleHints>
 #include <QWheelEvent>
@@ -208,6 +209,36 @@ private slots:
         QCOMPARE(uart().framingErrors(), qint64(ui_->board.uartTxFramingErrorCycles().size()));
         QVERIFY2(ui_->warnings.isEmpty(), qPrintable(ui_->warnings.join('\n')));
         ui_.reset();
+    }
+
+    // A launcher's scripted --send: each send is an RX row stamped with its
+    // first start bit and placed where the script sent it, before the echoes.
+    void scriptedSendsShowInTheTerminal() {
+        ui_->closeShell();
+        controller_.reset();
+        ui_ = std::make_unique<BoardUiFixture<Vuart_echo>>(
+            "uart_echo", VB_SOURCE_DIR "/examples/uart_echo.xdc");
+        vb::qt::SimulationController::Options options;
+        options.automaticScheduling = false;
+        options.nowNanoseconds = [this] { return wallNanoseconds_; };
+        controller_ = std::make_unique<vb::qt::SimulationController>(
+            ui_->adapter, QStringLiteral("UART Echo"), std::move(options));
+        const char* argv[] = {"launcher", "--frames", "12", "--send", "100000:hello",
+                              "--send", "150000:A"};
+        auto run = vb::parseRunArgs(7, const_cast<char**>(argv), {});
+        QVERIFY(run.errors.empty());
+        QVERIFY(controller_->startScript(run.run));  // its own startup reset
+        QVERIFY(ui_->loadShell(controller_.get(),
+                               {{QStringLiteral("designSource"), QStringLiteral("uart_echo")}}));
+        QTRY_VERIFY(ui_->item("uartTerminal") && ui_->item("uartTerminal")->isVisible());
+        QVERIFY(ui_->click("runPauseButton"));
+        for (int batch = 0; batch < 20 && controller_->running(); ++batch) runBatch();
+        QCOMPARE(ui_->board.now(), uint64_t{1'200'016});
+        QTRY_COMPARE(text("uartLineText0"), QStringLiteral("hello"));
+        QCOMPARE(text("uartLineText1"), QStringLiteral("A"));
+        QCOMPARE(text("uartLineText2"), QStringLiteral("helloA"));
+        QCOMPARE(text("simulationScript"), QStringLiteral("Scripted run complete"));
+        QVERIFY(capture("uart-scripted"));
     }
 
     void opensOnTerminalWithStartupResetAndEmptyStates() {

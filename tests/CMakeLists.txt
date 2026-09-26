@@ -34,15 +34,15 @@ add_test(NAME engine_contract COMMAND test_engine_contract
 
 # --- BoardModel: the milestone 1.3 acceptance criterion, headless ----------
 add_executable(test_board_model test_board_model.cpp)
-target_link_libraries(test_board_model PRIVATE vb_stimulus vb_board vb_engine sim_counter)
+target_link_libraries(test_board_model PRIVATE vb_script vb_board vb_engine sim_counter)
 add_test(NAME board_model COMMAND test_board_model
   "${CMAKE_SOURCE_DIR}/examples/counter.xdc"
 )
 
 # --- stimulus/CLI parsing: pure functions, no SDL, no engine ---------------
-add_executable(test_gui_script test_gui_script.cpp)
-target_link_libraries(test_gui_script PRIVATE vb_stimulus)
-add_test(NAME gui_script COMMAND test_gui_script)
+add_executable(test_script test_script.cpp)
+target_link_libraries(test_script PRIVATE vb_script)
+add_test(NAME script COMMAND test_script)
 
 # --- milestone 1.4 acceptance: stopwatch golden log (3 simulated seconds) --
 add_executable(test_stopwatch_golden test_stopwatch_golden.cpp)
@@ -148,6 +148,6 @@ add_executable(test_vga_contract test_vga_contract.cpp)
 target_link_libraries(test_vga_contract PRIVATE vb_board)
 add_test(NAME vga_contract COMMAND test_vga_contract)
 
-add_executable(test_gui_runner test_gui_runner.cpp)
-target_link_libraries(test_gui_runner PRIVATE vb_stimulus vb_engine)
-add_test(NAME gui_runner COMMAND test_gui_runner)
+add_executable(test_script_runner test_script_runner.cpp)
+target_link_libraries(test_script_runner PRIVATE vb_script vb_engine)
+add_test(NAME script_runner COMMAND test_script_runner)

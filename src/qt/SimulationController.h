@@ -1,13 +1,18 @@
 #pragma once
 
 #include "qt/BoardAdapter.h"
+#include "script/RunOptions.h"
+#include "script/ScriptRunner.h"
 
 #include <QObject>
 #include <QString>
 #include <QtQml/qqmlregistration.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <optional>
+#include <utility>
 
 class QThread;
 class QTimer;
@@ -35,6 +40,9 @@ class SimulationController : public QObject {
     Q_PROPERTY(double cyclesPerSecond READ cyclesPerSecond NOTIFY stateChanged FINAL)
     Q_PROPERTY(double realtimeMultiplier READ realtimeMultiplier NOTIFY stateChanged FINAL)
     Q_PROPERTY(QString errorString READ errorString NOTIFY stateChanged FINAL)
+    Q_PROPERTY(bool scripted READ scripted NOTIFY stateChanged FINAL)
+    Q_PROPERTY(bool finished READ finished NOTIFY stateChanged FINAL)
+    Q_PROPERTY(QString endCycleText READ endCycleText NOTIFY stateChanged FINAL)
 
 public:
     static constexpr uint64_t BatchCycles = 100'000;
@@ -66,6 +74,21 @@ public:
     double cyclesPerSecond() const { return cyclesPerSecond_; }
     double realtimeMultiplier() const { return cyclesPerSecond_ / 100'000'000.0; }
     QString errorString() const { return errorString_; }
+    bool scripted() const { return script_.has_value(); }
+    // A finite scripted run reached its last cycle; nothing advances further.
+    bool finished() const { return finished_; }
+    // The last cycle of a finite scripted run; empty otherwise.
+    QString endCycleText() const { return endCycleText_; }
+
+    // C++ only, once, on a board still at cycle 0 (launcher --at/--switches/
+    // --send/--frames/--log/--screenshot). Performs the shared scripted startup
+    // (logging first, then the 16-cycle reset while scripts apply at their exact
+    // cycles). Afterwards Run, Step and Reset all advance through the script.
+    // A finite run (maxFrames >= 0) ends at startup + frames * cyclesPerFrame:
+    // every advance is clipped at that cycle, then runFinished() is emitted.
+    bool startScript(RunOptions options);
+    // Script inputs and sends not applied yet: {inputs, sends}.
+    std::pair<std::size_t, std::size_t> unappliedScriptEvents() const;
 
     Q_INVOKABLE bool run();
     Q_INVOKABLE bool pause();
@@ -79,10 +102,21 @@ public:
 
 signals:
     void stateChanged();
+    // A finite scripted run reached its last cycle; emitted once, after the
+    // final state is published.
+    void runFinished();
 
 private:
+    struct Script {
+        RunOptions options;
+        ScriptCursor cursor;
+        std::optional<uint64_t> endCycle;
+    };
+
     bool canMutate() const;
     bool advance(uint64_t cycles);
+    ScriptSend scriptSend();
+    void finish();
     void publish(qint64 now);
     void clearMeasurement(qint64 now);
     void fail(const QString& message);
@@ -104,6 +138,11 @@ private:
     QString cycleText_;
     QString virtualTimeText_;
     QString errorString_;
+    std::optional<Script> script_;
+    bool finished_ = false;
+    bool finishAnnounced_ = false;
+    bool scriptFailed_ = false;  // startScript failed: nothing may advance
+    QString endCycleText_;
     uint64_t runCycle_ = 0;
     qint64 runWall_ = 0;
     uint64_t sampleCycle_ = 0;

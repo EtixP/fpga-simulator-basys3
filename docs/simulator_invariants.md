@@ -115,10 +115,17 @@ PASS reviews on 2026-09-18. Qt migration must preserve this contract.
   Literal supported documents survive canonical parse/write/parse serialization.
 
 ## Scripted frontend startup
-- Positive-length demo runs apply automatic reset from cycle 0 through 16 while
+- Positive-length scripted runs (launcher --frames/--at/--switches/--send/--log/
+  --screenshot, any frontend) apply automatic reset from cycle 0 through 16 while
   servicing scripts at their exact absolute cycles; logging includes startup.
   Explicit BTNC scripts take ownership of reset. Same-cycle switches/buttons
   precede UART sends; order within each type is stable.
 - A zero-frame launch performs no reset, scripts or advancement. Normal run horizon
   is 16 + frames*cyclesPerFrame. GUI measurements describe wall-clock throughput,
   never alter simulation results. Interactive event cycles depend on when delivered.
+- In the Qt frontend every advance of a scripted run (Run batches of any size,
+  Step, Reset) goes through the shared scheduler, so events keep their exact
+  cycles; a finite run's advances are clipped at its horizon. A scripted BTNC
+  event inside a Reset pulse owns BTNC afterwards, as during startup. --log keeps the
+  whole structured log for the file; a recording log view then reads it without
+  clearing. Launches without scripted options stay interactive and start paused.

@@ -9,7 +9,7 @@
 #include "check.h"
 #include "constraints/Xdc.h"
 #include "engine/VerilatorEngine.h"
-#include "gui/Stimulus.h"
+#include "script/Stimulus.h"
 
 #include <fstream>
 #include <sstream>
@@ -103,7 +103,7 @@ int main(int argc, char** argv) {
   CHECK_EQ(board.digitChar(0), ' ');
 
   // applyStimulus dispatches through the same setters the GUI uses (the
-  // headless half of the --at path; parsing is covered by test_gui_script).
+  // headless half of the --at path; parsing is covered by test_script).
   CHECK(vb::applyStimulus(board, {0, "SW3", true}));
   CHECK(board.switchState(3));
   CHECK(vb::applyStimulus(board, {0, "SW3", false}));

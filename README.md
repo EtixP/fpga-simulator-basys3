@@ -9,19 +9,28 @@ Built with **C++20 and Verilator** for macOS; migration to **Qt 6 / Qt Quick** i
 | --- | --- |
 | Simulator | Working XDC pin bindings, switches, LEDs, buttons, seven-segment display, UART, VGA, VCD traces and regression tests. Counter, stopwatch, UART echo and VGA pattern examples are included. |
 | Qt frontend — M0–M7 complete | Counter, stopwatch, UART echo and VGA pattern launchers, resizable workspace, board controls, Run/Pause/Step/Reset, exact virtual time and measured speed. Turbo and best-effort real-time pacing. UART terminal with cycle-stamped TX/RX rows, send, hex view, clear and bounded scrollback. Pixel-exact VGA monitor showing each completed frame with its cycle and the monitor's signal diagnosis. Signal inspector with pin bindings, change highlighting and RTL watches; filterable, cycle-stamped event log. |
-| Next — M8 | Layout, theme and status polish, then a parity comparison and removal of the legacy GUI. |
+| M8 — in progress | Scripted runs (`--frames`, `--at`, `--switches`, `--send`, `--log`, `--screenshot`, `--xdc`) ported to Qt with byte-identical results; status polish. Next: removal of the legacy GUI. |
 
-**Qt runs all four built-in examples**, each in its own launcher. Loading
-arbitrary designs is still pending; the legacy ImGui demos remain available
-until M8.
+**Qt runs all four built-in examples**, each in its own launcher, interactively
+or as reproducible scripted runs. Loading arbitrary designs is still pending;
+the legacy ImGui demos remain available until the M8 removal step.
 
-M7 verification: **38/38 full-suite checks**, **18/18 headless checks** and
-**20/20 Qt sanitizer checks**, with two independent reviews.
-[Inspector and log](docs/qt_inspector_log.md) · [VGA monitor](docs/qt_vga.md) ·
+M8 scripted-run verification: **44/44 full-suite checks**, **18/18 headless
+checks** and **26/26 Qt sanitizer checks**; the Qt launchers and the legacy demos
+write byte-identical logs for the same scripts.
+[Scripted runs](docs/qt_scripted_runs.md) · [Inspector and log](docs/qt_inspector_log.md) · [VGA monitor](docs/qt_vga.md) ·
 [UART terminal](docs/qt_uart.md) · [Simulation controls](docs/qt_control.md) ·
 [Roadmap](docs/migration_plan.md)
 
 ## Screenshots
+
+| Scripted counter run at its last cycle | Scripted UART sends and their echoes |
+| --- | --- |
+| ![Qt counter after a scripted two-frame run: finished, controls disabled, switches preset by the script](docs/screenshots/qt-scripted-counter-m8.png) | ![Qt UART terminal after a scripted run: two RX sends stamped with their first start bits, then the echo](docs/screenshots/qt-scripted-uart-m8.png) |
+
+Captured by the native simulation and UART UI tests. Scripted runs set inputs
+and send text at exact cycles, stop at their last cycle and write the same logs
+as the legacy demos.
 
 | Inspector with an RTL watch | Event log filtered to one LED |
 | --- | --- |
@@ -73,6 +82,14 @@ designs need it (they open at cycle 16). Type in the UART tab, press Return,
 then Run or Step. The VGA monitor shows its first frame after about 3.25 million
 cycles.
 Use `--preview` for the unloaded board or `--realtime` for best-effort 1× pacing.
+
+Scripted runs apply inputs at exact cycles, run by themselves and can write a
+log and a screenshot; see [scripted runs](docs/qt_scripted_runs.md):
+
+```sh
+./build/qt/src/qt/virtualbasys_qt_stopwatch --frames 300 \
+  --at 100000:BTNU=1 --at 1300000:BTNU=0 --log stopwatch.log --screenshot stopwatch.png
+```
 
 Run tests with `ctest --test-dir build/qt --output-on-failure`.
 The optional Surfer VCD check is skipped unless `surfer` is installed.

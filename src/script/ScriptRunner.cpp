@@ -1,7 +1,7 @@
-#include "gui/GuiRunner.h"
+#include "script/ScriptRunner.h"
 
 #include "board/BoardModel.h"
-#include "gui/GuiApp.h"
+#include "script/RunOptions.h"
 
 #include <algorithm>
 #include <limits>
@@ -9,8 +9,8 @@
 
 namespace vb {
 
-void advanceScripted(BoardModel& board, const GuiOptions& opts,
-                     ScriptCursor& cursor, uint64_t cycles) {
+void advanceScripted(BoardModel& board, const RunOptions& opts,
+                     ScriptCursor& cursor, uint64_t cycles, const ScriptSend& send) {
   if (cycles > std::numeric_limits<uint64_t>::max() - board.now())
     throw std::overflow_error("scripted advance exceeds the virtual cycle range");
   const uint64_t end = board.now() + cycles;
@@ -22,7 +22,10 @@ void advanceScripted(BoardModel& board, const GuiOptions& opts,
     }
     while (cursor.send < opts.sends.size() &&
            opts.sends[cursor.send].cycle <= board.now()) {
-      board.sendUartText(opts.sends[cursor.send].text);
+      if (send)
+        send(opts.sends[cursor.send].text);
+      else
+        board.sendUartText(opts.sends[cursor.send].text);
       ++cursor.send;
     }
     if (board.now() == end) break;
@@ -35,15 +38,15 @@ void advanceScripted(BoardModel& board, const GuiOptions& opts,
   }
 }
 
-void initializeDemoRun(BoardModel& board, const GuiOptions& opts,
-                       ScriptCursor& cursor) {
+void initializeScriptedRun(BoardModel& board, const RunOptions& opts,
+                           ScriptCursor& cursor, const ScriptSend& send) {
   if (board.now() != 0 || cursor.event != 0 || cursor.send != 0)
     throw std::logic_error("demo startup requires a new board and script cursor");
   if (!opts.logPath.empty()) board.setLogEnabled(true);
   if (opts.maxFrames == 0) return;
 
   board.setButton(Button::C, true);
-  advanceScripted(board, opts, cursor, 16);
+  advanceScripted(board, opts, cursor, 16, send);
   // Explicit user control of BTNC persists just like any other board input.
   // In particular, a hold starting during startup must not be truncated at 16.
   const bool scriptedReset = std::any_of(

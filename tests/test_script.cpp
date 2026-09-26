@@ -4,8 +4,8 @@
 #include "board/SevenSeg.h"
 #include "board/Uart.h"
 #include "check.h"
-#include "gui/GuiApp.h"
-#include "gui/Stimulus.h"
+#include "script/RunOptions.h"
+#include "script/Stimulus.h"
 
 #include <vector>
 
@@ -143,20 +143,28 @@ int main() {
     const char* argv[] = {"demo", "--xdc",      "/x.xdc", "--frames", "90",
                           "--log", "out.log",   "--switches", "0101",
                           "--at",  "7:BTNC=1"};
-    const auto a = vb::parseDemoArgs(11, const_cast<char**>(argv), "default.xdc");
+    const auto a = vb::parseRunArgs(11, const_cast<char**>(argv), "default.xdc");
     CHECK_EQ(a.errors.size(), 0);
     CHECK(a.xdcPath == "/x.xdc");
-    CHECK_EQ(a.gui.maxFrames, 90);
-    CHECK(a.gui.logPath == "out.log");
-    CHECK_EQ(a.gui.stimulus.size(), 3);
-    CHECK(a.gui.stimulus[0].name == "SW2" && a.gui.stimulus[0].cycle == 0);
-    CHECK(a.gui.stimulus[1].name == "SW0" && a.gui.stimulus[1].cycle == 0);
-    CHECK(a.gui.stimulus[2].name == "BTNC" && a.gui.stimulus[2].cycle == 7);
+    CHECK_EQ(a.run.maxFrames, 90);
+    CHECK(a.run.logPath == "out.log");
+    CHECK_EQ(a.run.stimulus.size(), 3);
+    CHECK(a.run.stimulus[0].name == "SW2" && a.run.stimulus[0].cycle == 0);
+    CHECK(a.run.stimulus[1].name == "SW0" && a.run.stimulus[1].cycle == 0);
+    CHECK(a.run.stimulus[2].name == "BTNC" && a.run.stimulus[2].cycle == 7);
+  }
+  // --switches keeps its argument position among --at events of its cycle.
+  {
+    const char* argv[] = {"demo", "--at", "0:SW0=0", "--switches", "1", "--at", "0:SW0=0"};
+    const auto a = vb::parseRunArgs(7, const_cast<char**>(argv), "d.xdc");
+    CHECK_EQ(a.errors.size(), 0);
+    CHECK_EQ(a.run.stimulus.size(), 3);
+    CHECK(!a.run.stimulus[0].value && a.run.stimulus[1].value && !a.run.stimulus[2].value);
   }
   // Default XDC used when --xdc absent; unknown flags are errors.
   {
     const char* argv[] = {"demo", "--bogus"};
-    const auto a = vb::parseDemoArgs(2, const_cast<char**>(argv), "d.xdc");
+    const auto a = vb::parseRunArgs(2, const_cast<char**>(argv), "d.xdc");
     CHECK(a.xdcPath == "d.xdc");
     CHECK_EQ(a.errors.size(), 1);
   }
@@ -164,21 +172,21 @@ int main() {
   {
     const char* argv[] = {"demo", "--frames", "abc", "--frames", "-7",
                           "--switches", "2x1z", "--switches", "10101010101010101"};
-    const auto a = vb::parseDemoArgs(9, const_cast<char**>(argv), "d.xdc");
+    const auto a = vb::parseRunArgs(9, const_cast<char**>(argv), "d.xdc");
     CHECK_EQ(a.errors.size(), 4);
-    CHECK_EQ(a.gui.maxFrames, -1);  // untouched by the bad values
+    CHECK_EQ(a.run.maxFrames, -1);  // untouched by the bad values
   }
   // --send parses CYCLE:TEXT and sorts by cycle; bad forms are errors.
   {
     const char* argv[] = {"demo", "--send", "5000:hi there", "--send", "100:x",
                           "--send", "nocolon", "--send", "12:"};
-    const auto a = vb::parseDemoArgs(9, const_cast<char**>(argv), "d.xdc");
+    const auto a = vb::parseRunArgs(9, const_cast<char**>(argv), "d.xdc");
     CHECK_EQ(a.errors.size(), 2);
-    CHECK_EQ(a.gui.sends.size(), 2);
-    CHECK(a.gui.sends[0].cycle == 100 && a.gui.sends[0].text == "x");
-    CHECK(a.gui.sends[1].cycle == 5000 && a.gui.sends[1].text == "hi there");
+    CHECK_EQ(a.run.sends.size(), 2);
+    CHECK(a.run.sends[0].cycle == 100 && a.run.sends[0].text == "x");
+    CHECK(a.run.sends[1].cycle == 5000 && a.run.sends[1].text == "hi there");
   }
 
-  std::puts("test_gui_script: PASS");
+  std::puts("test_script: PASS");
   return 0;
 }

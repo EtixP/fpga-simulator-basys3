@@ -10,7 +10,7 @@
 #include "board/BoardModel.h"
 #include "board/Vga.h"
 #include "gui/BoardWindow.h"
-#include "gui/GuiRunner.h"
+#include "script/ScriptRunner.h"
 
 #include "imgui.h"
 #include "imgui_impl_metal.h"
@@ -59,9 +59,9 @@ bool writeBmp(const std::string& path, const uint8_t* bgra, uint32_t w, uint32_t
 
 }  // namespace
 
-int runBoardGui(BoardModel& board, const GuiOptions& opts) {
+int runBoardGui(BoardModel& board, const RunOptions& opts) {
   ScriptCursor script;
-  initializeDemoRun(board, opts, script);
+  initializeScriptedRun(board, opts, script);
 
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
     std::fprintf(stderr, "error: SDL_Init: %s\n", SDL_GetError());

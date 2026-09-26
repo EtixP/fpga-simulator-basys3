@@ -46,6 +46,10 @@ Existing goldens remain the acceptance baseline.
 - M5 groups the board's own UART stamps into a bounded adapter scrollback
   (1,000 rows, 4,096 pending input bytes). The UART launcher applies the Reset
   control once at startup because uart_echo needs its btnC reset (R6).
+- M8 ports the legacy scripted-run CLI to the Qt launchers with identical
+  semantics: the scheduler moved to a frontend-neutral src/script library, and
+  the Qt controller sends every advance through it. Parity is checked by
+  byte-identical logs against the legacy loop and the legacy executables.
 - M7 inspection stays behind BoardModel (read-only pass-throughs). The inspector
   lists ports and user watches; internal signals are not enumerated, because
   SimEngine enumerates only ports. The Qt log view owns the structured log while

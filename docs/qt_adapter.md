@@ -51,7 +51,12 @@ model, which copies the framebuffer only when a new frame completes, and the
 `VgaDisplay` item; see [qt_vga.md](qt_vga.md). M7 adds the `inspector` and
 `eventLog` models with their `inspectorView` and `eventLogView` filter proxies,
 and the `addWatch`, `removeWatch`, `setLogRecording` and `clearEventLog`
-methods; see [qt_inspector_log.md](qt_inspector_log.md).
+methods; see [qt_inspector_log.md](qt_inspector_log.md). M8 adds two C++-only
+seams for scripted runs: the controller routes a scripted `--send` through
+`sendScriptedUart`, which queues bytes exactly as the board would and shows them
+as a terminal RX row; `setBoardLogRetained` lets a `--log` file keep the whole
+structured log while the log view reads it without clearing it. See
+[qt_scripted_runs.md](qt_scripted_runs.md).
 
 The C++-only `refresh()` reads a complete snapshot, stages all model caches,
 then publishes changed rows and roles. New UART terminal rows are inserted last,

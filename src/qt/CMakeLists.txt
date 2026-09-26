@@ -15,14 +15,20 @@ qt_add_qml_module(vb_qt_adapter STATIC
           SimulationController.h SimulationController.cpp
 )
 target_include_directories(vb_qt_adapter PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/..")
-# Gui/Quick: the VGA frame image and its scene-graph display item.
-target_link_libraries(vb_qt_adapter PUBLIC Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick PRIVATE vb_board)
+# Gui/Quick: the VGA frame image and its scene-graph display item. vb_script:
+# scripted runs advance through the same scheduler as every frontend.
+target_link_libraries(vb_qt_adapter PUBLIC Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick vb_script
+                      PRIVATE vb_board)
 
 # One Verilator runtime per launcher. Share the launcher and QML sources while
 # keeping generated QML output directories distinct between executable targets.
 # STARTUP_RESET applies the Reset control's pulse once before the window opens.
+# CYCLES_PER_FRAME is a scripted run's frame length (--frames); default 100000.
 function(vb_add_qt_example target design title)
-  cmake_parse_arguments(PARSE_ARGV 3 VB_EXAMPLE "STARTUP_RESET" "" "")
+  cmake_parse_arguments(PARSE_ARGV 3 VB_EXAMPLE "STARTUP_RESET" "CYCLES_PER_FRAME" "")
+  if(NOT VB_EXAMPLE_CYCLES_PER_FRAME)
+    set(VB_EXAMPLE_CYCLES_PER_FRAME 100000)
+  endif()
   qt_add_executable(${target} main.cpp)
   qt_add_qml_module(${target}
     URI VirtualBasys
@@ -42,7 +48,8 @@ function(vb_add_qt_example target design title)
   target_compile_definitions(${target} PRIVATE
     VB_MODEL_HEADER="V${design}.h" VB_MODEL=V${design}
     VB_DESIGN="${design}" VB_DESIGN_TITLE="${title}"
-    VB_STARTUP_RESET=$<BOOL:${VB_EXAMPLE_STARTUP_RESET}>)
+    VB_STARTUP_RESET=$<BOOL:${VB_EXAMPLE_STARTUP_RESET}>
+    VB_CYCLES_PER_FRAME=${VB_EXAMPLE_CYCLES_PER_FRAME})
   target_link_libraries(${target} PRIVATE
     Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::QuickControls2
     vb_qt_adapter vb_qt_adapterplugin vb_board vb_engine sim_${design}
@@ -52,7 +59,9 @@ endfunction()
 vb_add_qt_example(virtualbasys_qt counter Counter)
 vb_add_qt_example(virtualbasys_qt_stopwatch stopwatch Stopwatch)
 vb_add_qt_example(virtualbasys_qt_uart uart_echo "UART Echo" STARTUP_RESET)
-vb_add_qt_example(virtualbasys_qt_vga vga_pattern "VGA Pattern" STARTUP_RESET)
+# One VGA frame per scripted frame, as in the legacy VGA demo.
+vb_add_qt_example(virtualbasys_qt_vga vga_pattern "VGA Pattern" STARTUP_RESET
+                  CYCLES_PER_FRAME 1700000)
 
 # QCoreApplication/QQmlEngine tests need no window, platform plugin or renderer.
 qt_add_executable(test_qt_board_adapter "${CMAKE_SOURCE_DIR}/tests/test_qt_board_adapter.cpp")
@@ -261,3 +270,39 @@ if(VB_BUILD_BENCHMARKS)
     vb_qt_adapter vb_qt_adapterplugin vb_board vb_engine sim_vga_pattern
     Qt6::Test Qt6::Quick Qt6::Qml Qt6::QuickControls2)
 endif()
+
+# Scripted launcher runs (offscreen processes) against the legacy scripted-run
+# loop replayed in-process on the same design: byte-identical logs.
+foreach(entry "virtualbasys_qt;counter;100000" "virtualbasys_qt_stopwatch;stopwatch;100000"
+              "virtualbasys_qt_uart;uart_echo;100000" "virtualbasys_qt_vga;vga_pattern;1700000")
+  list(GET entry 0 launcher)
+  list(GET entry 1 design)
+  list(GET entry 2 cycles_per_frame)
+  qt_add_executable(test_qt_script_cli_${design} "${CMAKE_SOURCE_DIR}/tests/test_qt_script_cli.cpp")
+  target_include_directories(test_qt_script_cli_${design} PRIVATE "${CMAKE_SOURCE_DIR}/tests")
+  target_compile_definitions(test_qt_script_cli_${design} PRIVATE
+    VB_MODEL_HEADER="V${design}.h" VB_MODEL=V${design} VB_DESIGN="${design}"
+    VB_CYCLES_PER_FRAME=${cycles_per_frame} VB_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  target_link_libraries(test_qt_script_cli_${design} PRIVATE
+    vb_script vb_board vb_engine sim_${design} Qt6::Core Qt6::Gui)
+  add_dependencies(test_qt_script_cli_${design} ${launcher})
+  add_test(NAME qt_script_cli_${design} COMMAND test_qt_script_cli_${design}
+    $<TARGET_FILE:${launcher}> "${CMAKE_SOURCE_DIR}/examples/${design}.xdc")
+  set_tests_properties(qt_script_cli_${design} PROPERTIES TIMEOUT 300)
+endforeach()
+
+# Scripted runs through the controller against the shared scheduler driven
+# directly: counter for inputs, Reset, the run's end and the retained log;
+# uart_echo for scripted sends in the terminal.
+foreach(design counter uart_echo)
+  string(TOUPPER "${design}" design_define)
+  qt_add_executable(test_qt_script_run_${design} "${CMAKE_SOURCE_DIR}/tests/test_qt_script_run.cpp")
+  target_include_directories(test_qt_script_run_${design} PRIVATE "${CMAKE_SOURCE_DIR}/tests")
+  target_compile_definitions(test_qt_script_run_${design} PRIVATE
+    VB_MODEL_HEADER="V${design}.h" VB_MODEL=V${design} VB_DESIGN="${design}" VB_${design_define}=1)
+  target_link_libraries(test_qt_script_run_${design} PRIVATE
+    vb_qt_adapter vb_qt_adapterplugin vb_board vb_engine sim_${design} Qt6::Test)
+  add_test(NAME qt_script_run_${design} COMMAND test_qt_script_run_${design}
+    "${CMAKE_SOURCE_DIR}/examples/${design}.xdc")
+  set_tests_properties(qt_script_run_${design} PROPERTIES TIMEOUT 300)
+endforeach()

@@ -1,4 +1,4 @@
-#include "gui/Stimulus.h"
+#include "script/Stimulus.h"
 
 #include "board/BoardModel.h"
 

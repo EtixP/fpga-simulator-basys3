@@ -55,15 +55,18 @@ and testing details are in [qt_adapter.md](qt_adapter.md).
 
 Drag the separators to resize the project, inspector and output panes. The toolbar
 buttons toggle their visibility; **Restore layout** restores their default sizes,
-shows all panes and returns to Board / Terminal. Layout changes are session-only.
-Board and Overview select the central workspace; Terminal, UART, Logs and Waveforms
-select the bottom panel. The UART tab is a working terminal for designs that bind
-the USB-UART pins, and such designs open on it; see [qt_uart.md](qt_uart.md).
+shows all panes and returns to the Board and the default bottom tab. Layout
+changes are session-only. Board and Overview select the central workspace;
+Terminal, UART, Logs and Waveforms select the bottom panel. The UART tab is a
+working terminal for designs that bind the USB-UART pins, and such designs open
+on it; other loaded designs open on Logs. See [qt_uart.md](qt_uart.md).
 Designs that drive all VGA pins show a monitor at the top of the board; see
 [qt_vga.md](qt_vga.md). The Inspector pane lists the design's signals and the Logs
 tab records board events; see [qt_inspector_log.md](qt_inspector_log.md).
 Waveform viewing and command execution remain unavailable in Qt. The simulation toolbar
-controls the loaded built-in example.
+controls the loaded built-in example. The launchers also run the legacy demos'
+scripted runs (`--frames`, `--at`, `--switches`, `--send`, `--log`, `--screenshot`,
+`--xdc`); see [qt_scripted_runs.md](qt_scripted_runs.md).
 Board behavior, input ownership and connected-example tests are described in
 [qt_board.md](qt_board.md).
 
@@ -72,7 +75,8 @@ for Project / Inspector / Output, and Command+Shift+0 to restore the layout. Wit
 full keyboard navigation enabled in the OS, Tab moves through controls; Space
 activates a focused button, and arrow keys navigate the output tabs. Hiding a pane
 moves focus to its toolbar button. Qt's Basic controls style and a shared dark
-palette keep rendering consistent between tests and the app.
+palette keep rendering consistent between tests and the app; disabled controls
+use a dimmer text color. The window title names the loaded example.
 
 ## Verification
 

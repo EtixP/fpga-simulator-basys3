@@ -59,6 +59,13 @@ The callback rechecks Run and thread ownership; nested model publication
 defers the callback without losing the next timer. Synchronous reentrant controller
 commands and stepping during adapter publication are rejected.
 
+A scripted launch ([qt_scripted_runs.md](qt_scripted_runs.md)) hands the
+controller a script once, on the fresh board: `startScript` performs the shared
+startup and every later advance (Run batches, Step, Reset) goes through the
+shared scheduler, so script events apply at their exact cycles. A finite run
+clips each advance at its last cycle, publishes that state, emits `runFinished`
+once and then refuses Run, Step and Reset.
+
 Qt widgets retain the [board input ownership contract](qt_board.md). Runtime
 simulation errors pause execution and appear in the toolbar; Reset can recover
 when the design permits. Pausing and teardown cannot leave queued stepping active.

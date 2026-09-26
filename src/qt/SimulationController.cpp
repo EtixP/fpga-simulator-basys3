@@ -82,6 +82,10 @@ void SimulationController::publish(qint64 now) {
     lastPublishWall_ = now;
     adapter_->refresh();
     emit stateChanged();
+    if (finished_ && !finishAnnounced_) {
+        finishAnnounced_ = true;
+        emit runFinished();
+    }
 }
 
 void SimulationController::fail(const QString& message) {
@@ -91,13 +95,33 @@ void SimulationController::fail(const QString& message) {
     clearMeasurement(options_.nowNanoseconds());
 }
 
+ScriptSend SimulationController::scriptSend() {
+    // Scripted sends appear in the UART terminal like typed ones.
+    return [this](std::string_view text) { adapter_->sendScriptedUart(text); };
+}
+
+void SimulationController::finish() {
+    running_ = false;
+    timer_->stop();
+    finished_ = true;
+}
+
 bool SimulationController::advance(uint64_t cycles) {
+    // A finite scripted run never passes its last cycle.
+    if (script_ && script_->endCycle)
+        cycles = std::min(cycles, *script_->endCycle - board_->now());
     if (board_->now() > MaximumCycle || cycles > MaximumCycle - board_->now()) {
         fail(QStringLiteral("The virtual cycle counter has reached its limit."));
         return false;
     }
     try {
-        board_->tick(cycles);
+        // One time-advance path: script events apply at their exact cycles
+        // whether Run, Step or Reset advances time.
+        if (script_)
+            advanceScripted(*board_, script_->options, script_->cursor, cycles, scriptSend());
+        else
+            board_->tick(cycles);
+        if (script_ && script_->endCycle && board_->now() == *script_->endCycle) finish();
         return true;
     } catch (const std::exception& error) {
         fail(QString::fromUtf8(error.what()));
@@ -105,8 +129,42 @@ bool SimulationController::advance(uint64_t cycles) {
     }
 }
 
+bool SimulationController::startScript(RunOptions options) {
+    if (!canMutate() || script_ || running_ || !errorString_.isEmpty() || board_->now() != 0
+        || !options.cyclesPerFrame) return false;
+    QScopedValueRollback<bool> operation(busy_, true);
+    script_.emplace(Script{std::move(options), {}, std::nullopt});
+    try {
+        initializeScriptedRun(*board_, script_->options, script_->cursor, scriptSend());
+        const auto& run = script_->options;
+        if (run.maxFrames >= 0) {
+            // Startup took 16 cycles for a positive run and none for zero frames.
+            const auto frames = static_cast<uint64_t>(run.maxFrames);
+            if (frames > (MaximumCycle - board_->now()) / run.cyclesPerFrame)
+                throw std::overflow_error("the scripted run exceeds the virtual cycle range");
+            script_->endCycle = board_->now() + frames * run.cyclesPerFrame;
+            endCycleText_ = QString::number(*script_->endCycle);
+            if (board_->now() == *script_->endCycle) finish();
+        }
+    } catch (const std::exception& error) {
+        // A script that could not start never runs, not even after a Reset.
+        fail(QString::fromUtf8(error.what()));
+        scriptFailed_ = true;
+    }
+    const auto now = options_.nowNanoseconds();
+    clearMeasurement(now);
+    publish(now);
+    return errorString_.isEmpty();
+}
+
+std::pair<std::size_t, std::size_t> SimulationController::unappliedScriptEvents() const {
+    if (!script_) return {0, 0};
+    return {script_->options.stimulus.size() - script_->cursor.event,
+            script_->options.sends.size() - script_->cursor.send};
+}
+
 bool SimulationController::run() {
-    if (!canMutate() || !errorString_.isEmpty()) return false;
+    if (!canMutate() || !errorString_.isEmpty() || finished_ || scriptFailed_) return false;
     if (running_) return true;
     QScopedValueRollback<bool> operation(busy_, true);
     running_ = true;
@@ -130,7 +188,7 @@ bool SimulationController::pause() {
 
 bool SimulationController::step(uint32_t cycles) {
     if (!canMutate() || running_ || !cycles || cycles > MaximumStepCycles
-        || !errorString_.isEmpty()) return false;
+        || !errorString_.isEmpty() || finished_ || scriptFailed_) return false;
     QScopedValueRollback<bool> operation(busy_, true);
     const bool success = advance(cycles);
     publish(options_.nowNanoseconds());
@@ -138,7 +196,7 @@ bool SimulationController::step(uint32_t cycles) {
 }
 
 bool SimulationController::reset() {
-    if (!canMutate() || !canReset_) return false;
+    if (!canMutate() || !canReset_ || finished_ || scriptFailed_) return false;
     QScopedValueRollback<bool> operation(busy_, true);
     running_ = false;
     timer_->stop();
@@ -150,17 +208,26 @@ bool SimulationController::reset() {
     errorString_.clear();
     const bool wasPressed = board_->buttonState(Button::C);
     const uint64_t pulseStart = board_->now();
+    const std::size_t eventsBefore = script_ ? script_->cursor.event : 0;
     bool success = false;
     try {
         board_->setButton(Button::C, true);
         success = advance(ResetCycles);
-        // A reset command does not take ownership of an existing physical hold.
-        board_->setButton(Button::C, wasPressed);
+        // A reset command does not take ownership of an existing physical hold,
+        // and a scripted BTNC event during the pulse owns BTNC afterwards, as
+        // during a scripted run's startup reset.
+        const bool scriptedButton = script_ && std::any_of(
+            script_->options.stimulus.begin() + static_cast<std::ptrdiff_t>(eventsBefore),
+            script_->options.stimulus.begin() + static_cast<std::ptrdiff_t>(script_->cursor.event),
+            [](const StimulusEvent& event) { return event.name == "BTNC"; });
+        if (!scriptedButton) board_->setButton(Button::C, wasPressed);
     } catch (const std::exception& error) {
         fail(QString::fromUtf8(error.what()));
     }
-    // Presentation only: mark a completed pulse among UART terminal traffic.
-    if (success && errorString_.isEmpty()) adapter_->noteReset(pulseStart, ResetCycles);
+    // Presentation only: mark a completed pulse among UART terminal traffic. A
+    // finite scripted run may end during the pulse.
+    if (success && errorString_.isEmpty())
+        adapter_->noteReset(pulseStart, board_->now() - pulseStart);
     const auto now = options_.nowNanoseconds();
     clearMeasurement(now);
     publish(now);
@@ -217,7 +284,8 @@ void SimulationController::processBatch() {
     }
     const bool success = advance(options_.batchCycles);
     const auto after = options_.nowNanoseconds();
-    if (!success || after - lastPublishWall_ >= PublishInterval) publish(after);
+    // The last batch of a finite run always publishes its final state.
+    if (!success || finished_ || after - lastPublishWall_ >= PublishInterval) publish(after);
     schedule(pacingDelay(after));
 }
 

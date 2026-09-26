@@ -7,7 +7,9 @@ Control {
     id: controls
     required property SimulationController controller
     readonly property bool ready: controller !== null && controller.connected
+    // A finished scripted run has reached its last cycle; nothing advances.
     readonly property bool canAdvance: ready && controller.errorString.length === 0
+                                       && !controller.finished
     implicitHeight: contents.implicitHeight + topPadding + bottomPadding
     leftPadding: 18
     rightPadding: 14
@@ -25,7 +27,7 @@ Control {
                 Layout.preferredWidth: 88
                 text: controls.ready && controls.controller.running ? qsTr("Pause") : qsTr("Run")
                 enabled: controls.canAdvance
-                highlighted: controls.ready && !controls.controller.running
+                highlighted: controls.canAdvance && !controls.controller.running
                 onClicked: {
                     if (controls.controller.running) controls.controller.pause()
                     else controls.controller.run()
@@ -56,7 +58,7 @@ Control {
                 objectName: "resetButton"
                 Layout.leftMargin: 8
                 text: qsTr("Reset")
-                enabled: controls.ready && controls.controller.canReset
+                enabled: controls.ready && controls.controller.canReset && !controls.controller.finished
                 onClicked: controls.controller.reset()
                 ToolTip.visible: hovered
                 ToolTip.text: qsTr("Pause and apply a 16-cycle reset pulse. Virtual time continues.")
