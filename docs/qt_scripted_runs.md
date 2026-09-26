@@ -1,7 +1,8 @@
 # Scripted runs in the Qt launchers
 
-M8 gives the Qt launchers the scripted-run options of the legacy ImGui demos,
-with the same syntax, the same messages and the same simulation results. A
+M8 gave the Qt launchers the scripted-run options of the earlier ImGui demos,
+with the same syntax, the same messages and the same simulation results, before
+removing that frontend. A
 scripted run is reproducible: its inputs happen at exact virtual cycles, so the
 same arguments always produce the same structured log, however fast the window
 runs.
@@ -33,7 +34,7 @@ apply one Reset first.
 
 These are the frozen rules in the
 [simulator invariants](simulator_invariants.md#scripted-frontend-startup),
-implemented once in `src/script/` and used by both frontends.
+implemented once in `src/script/` and used by the launchers and tests.
 
 - **Startup.** Logging starts first. A scripted run then holds BTNC for cycles
   0–15 while its inputs apply at their own cycles; a scripted BTNC event in that
@@ -53,31 +54,33 @@ implemented once in `src/script/` and used by both frontends.
   reads the board's log without clearing it, so the file stays complete.
 - **UART terminal.** A scripted send appears as an RX row, stamped with its
   first start bit and placed at the cycle the script sent it, like a typed send.
-  Unlike typed text, it has no 4,096-byte queue limit or UTF-8 check, exactly as
-  in the legacy demos.
-- **Messages and exit codes.** Argument errors are the legacy messages, such as
-  `error: --frames '-7': expected a non-negative integer`, and exit 1 before any
-  window opens. As in the legacy demos, values follow their option as the next
-  argument: `--frames=1` and stray words, such as unquoted `--send` text, are
+  Unlike typed text, it has no 4,096-byte queue limit or UTF-8 check, as in the
+  ImGui demos.
+- **Messages and exit codes.** Argument errors are the ImGui demos' messages,
+  such as `error: --frames '-7': expected a non-negative integer`, and exit 1
+  before any window opens. Values follow their option as the next argument: `--frames=1` and stray words, such as unquoted `--send` text, are
   errors. Script events past the end of a run, or not reached before the window
   closes, are reported as warnings. Inputs to unbound switches or buttons, and
-  sends to a design without a receive pin, are ignored, as in the legacy demos.
+  sends to a design without a receive pin, are ignored, as in the ImGui demos.
   A screenshot or log that cannot be written is an error and exits 1.
 
-## Differences from the legacy demos
+## Differences from the ImGui demos (removed in M8)
 
 The simulation results are identical. Only presentation differs:
 
-- The legacy demos advanced one frame per display refresh; Qt runs scripted
+- Launched without scripted options, the ImGui demos started running at once,
+  all four after a startup reset. Qt launches open paused; only the UART and VGA
+  launchers apply one Reset first.
+- The ImGui demos advanced one frame per display refresh; Qt runs scripted
   runs in turbo. Only wall-clock time differs.
 - Qt saves a screenshot of its own window, in the format the suffix names; the
-  legacy demos always wrote BMP.
-- `--screenshot` without `--frames` prints a warning; the legacy demos ignored it.
+  ImGui demos always wrote BMP.
+- `--screenshot` without `--frames` prints a warning; the ImGui demos ignored it.
 - `--preview` and `--smoke-test` cannot be combined with scripted runs.
 - Unknown options are reported by Qt's option parser.
 - A run longer than the 64-bit cycle counter can reach (about 1.8 × 10¹⁴ frames
   of 100,000 cycles, 1.1 × 10¹³ in the VGA launcher) is rejected at startup; the
-  legacy demos accepted it and ran until closed.
+  ImGui demos accepted it and ran until closed.
 - A `--frames` run ended early, by Ctrl-C or by closing the window, warns that
   it saved no screenshot.
 
@@ -85,7 +88,7 @@ The simulation results are identical. Only presentation differs:
 
 - **`qt_script_cli_<design>`**, for all four launchers, runs the real launcher
   offscreen as a separate process. The oracle replays the same arguments
-  in-process with the legacy demos' loop: the startup, then one scripted advance
+  in-process with the ImGui demos' loop: the startup, then one scripted advance
   per frame. Log files must be byte-identical. Cases:
   - counter: switch presets, button holds, an event past the end, a scripted
     BTNC taking over the reset, same-cycle argument order both ways, zero
@@ -109,9 +112,14 @@ The simulation results are identical. Only presentation differs:
 - **`qt_simulation_ui`** and **`qt_uart_ui`** check a scripted run in the real
   window: the footer, the disabled (and dimmed) controls, the title, and the
   terminal rows of scripted sends.
-- **Legacy executables, compared directly.** The real ImGui demos and the Qt
+- **ImGui executables, compared directly.** The real ImGui demos and the Qt
   launchers, given the same arguments, wrote byte-identical logs and identical
   warnings in seven scenarios: counter (2), stopwatch (40 and 300 frames), UART
   echo, VGA and zero frames. Both screenshots of the VGA run show the same
   frame 0. An independent review repeated this for 123 runs, 82 of them
   randomized scripts, with identical logs, warnings and exit codes.
+- **Removal review.** Before the ImGui frontend was deleted, two further
+  reviewers compared 187 argument sets across the four designs, 75 of them
+  randomized: the launchers without the ImGui code wrote the same logs, exit
+  codes and messages as before and as the ImGui executables. The test
+  definitions were unchanged (44 with Qt, 18 without).

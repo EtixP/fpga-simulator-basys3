@@ -5,8 +5,8 @@ navigation, switches, LEDs, buttons, seven-segment display, inspector and tabbed
 output panel. M4 runs the built-in counter and stopwatch with Run/Pause, Step,
 physical reset and measured speed; M5 adds the UART echo launcher and terminal,
 M6 the VGA pattern launcher and monitor, and M7 the signal inspector and event
-log.
-The existing ImGui demos remain available.
+log. M8 added scripted runs and removed the earlier Dear ImGui/SDL2 frontend;
+Qt is the only frontend.
 
 ## Dependencies and build
 
@@ -36,15 +36,12 @@ which apply one 16-cycle Reset first (see [qt_uart.md](qt_uart.md) and
 pacing; `--preview` opens an unloaded board. Arbitrary project compilation/loading
 is deferred. See [simulation controls](qt_control.md) for exact reset and timing semantics.
 
-`VB_BUILD_QT_GUI` defaults to `OFF`. It is independent of `VB_BUILD_GUI`, which
-keeps its default `ON` and builds the legacy frontend on macOS only:
+`VB_BUILD_QT_GUI` defaults to `OFF`:
 
-| Qt flag | Legacy flag | Result |
-|---|---|---|
-| OFF | ON | Existing demos; no Qt dependency |
-| ON | ON | Both frontends |
-| ON | OFF | Qt frontend; no SDL2/ImGui dependency |
-| OFF | OFF | Headless libraries/tests; neither GUI dependency |
+| Flag | Result |
+|---|---|
+| `ON` | Qt frontend, launchers and Qt tests |
+| `OFF` | Headless libraries and tests; no GUI dependency |
 
 Qt discovery and autogen settings stay in the frontend subdirectory. The launcher
 consumes the `VirtualBasys.Board` adapter module, which reads BoardModel and keeps
@@ -64,7 +61,7 @@ Designs that drive all VGA pins show a monitor at the top of the board; see
 [qt_vga.md](qt_vga.md). The Inspector pane lists the design's signals and the Logs
 tab records board events; see [qt_inspector_log.md](qt_inspector_log.md).
 Waveform viewing and command execution remain unavailable in Qt. The simulation toolbar
-controls the loaded built-in example. The launchers also run the legacy demos'
+controls the loaded built-in example. The launchers also run the earlier ImGui demos'
 scripted runs (`--frames`, `--at`, `--switches`, `--send`, `--log`, `--screenshot`,
 `--xdc`); see [qt_scripted_runs.md](qt_scripted_runs.md).
 Board behavior, input ownership and connected-example tests are described in
@@ -82,7 +79,8 @@ use a dimmer text color. The window title names the loaded example.
 
 ```sh
 ctest --test-dir build/qt --output-on-failure
-cmake --build build/qt --target virtualbasys_qt_qmllint virtualbasys_qt_stopwatch_qmllint
+cmake --build build/qt --target virtualbasys_qt_qmllint virtualbasys_qt_stopwatch_qmllint \
+  virtualbasys_qt_uart_qmllint virtualbasys_qt_vga_qmllint
 ./build/qt/src/qt/virtualbasys_qt --smoke-test
 ./build/qt/src/qt/virtualbasys_qt_stopwatch --smoke-test
 ```
@@ -114,11 +112,10 @@ and rendered throughput benchmarks are described in [qt_control.md](qt_control.m
 To check dependency isolation on a machine with Qt installed:
 
 ```sh
-cmake -S . -B build/headless -DVB_BUILD_GUI=OFF -DVB_BUILD_QT_GUI=OFF \
-  -DCMAKE_DISABLE_FIND_PACKAGE_Qt6=TRUE -DCMAKE_DISABLE_FIND_PACKAGE_SDL2=TRUE
+cmake -S . -B build/headless -DVB_BUILD_QT_GUI=OFF -DCMAKE_DISABLE_FIND_PACKAGE_Qt6=TRUE
 cmake --build build/headless -j 8
 ctest --test-dir build/headless --output-on-failure
 ```
 
-CMake may report the two disable variables as unused: neither package lookup is
-reached when its frontend is disabled.
+CMake may report the disable variable as unused: the Qt lookup is not reached
+when the frontend is disabled.

@@ -36,7 +36,8 @@ performance comparisons, independent review, and resolution of blocking findings
 Existing goldens remain the acceptance baseline.
 
 ## Dependencies and unresolved decisions
-- Existing Verilator 5.050, CMake, C++20; legacy SDL2/Metal remains until parity.
+- Existing Verilator 5.050, CMake, C++20. The SDL2/Metal/ImGui frontend remained
+  until M8's parity check and was then removed.
 - Optional Qt ≥6.5 Core/Gui/Quick/Qml/QuickControls2; VB_BUILD_QT_GUI defaults OFF.
 - M1 uses a C++-owned adapter borrowing BoardModel on the GUI thread; QML sees
   cached child models. M4 keeps fixed-batch scheduling on that thread; each
@@ -48,8 +49,10 @@ Existing goldens remain the acceptance baseline.
   control once at startup because uart_echo needs its btnC reset (R6).
 - M8 ports the legacy scripted-run CLI to the Qt launchers with identical
   semantics: the scheduler moved to a frontend-neutral src/script library, and
-  the Qt controller sends every advance through it. Parity is checked by
-  byte-identical logs against the legacy loop and the legacy executables.
+  the Qt controller sends every advance through it. Parity was checked by
+  byte-identical logs against the legacy loop and the legacy executables; the
+  legacy frontend, the Dear ImGui submodule and the SDL2 dependency were then
+  removed, and VB_BUILD_GUI with them.
 - M7 inspection stays behind BoardModel (read-only pass-throughs). The inspector
   lists ports and user watches; internal signals are not enumerated, because
   SimEngine enumerates only ports. The Qt log view owns the structured log while

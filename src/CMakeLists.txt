@@ -27,9 +27,8 @@ add_library(vb_constraints STATIC
 )
 target_include_directories(vb_constraints PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-# Board-level state the GUI renders from. Peripherals are composed classes
-# (SevenSeg, SimLog; UART/VGA join as siblings). Engine-agnostic: SimEngine.h
-# + PinBinding only.
+# Board-level state the frontend renders from. Peripherals are composed classes
+# (SevenSeg, SimLog, UART, VGA). Engine-agnostic: SimEngine.h + PinBinding only.
 add_library(vb_board STATIC
   board/BoardModel.cpp
   board/SevenSeg.cpp
@@ -42,64 +41,11 @@ target_link_libraries(vb_board PUBLIC vb_constraints)
 # hot-path reason as vb_engine (above).
 target_compile_options(vb_board PRIVATE -O2)
 
-# Scripted runs shared by the frontends: stimulus, launcher CLI parsing and
-# the scheduler. Pure C++ over BoardModel, built unconditionally so headless
-# tests cover it without any frontend.
+# Scripted runs: stimulus, launcher CLI parsing and the scheduler. Pure C++
+# over BoardModel, built unconditionally so headless tests cover it without
+# the Qt frontend.
 add_library(vb_script STATIC script/Stimulus.cpp script/RunArgs.cpp script/ScriptRunner.cpp)
 target_link_libraries(vb_script PUBLIC vb_board)
-
-# --- GUI: Dear ImGui (submodule @ v1.92.8) + SDL2 + Metal -------------------
-if(VB_BUILD_GUI AND APPLE)
-  enable_language(OBJCXX)
-  find_package(SDL2 REQUIRED CONFIG)
-
-  set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/third_party/imgui)
-  add_library(vb_imgui STATIC
-    ${IMGUI_DIR}/imgui.cpp
-    ${IMGUI_DIR}/imgui_draw.cpp
-    ${IMGUI_DIR}/imgui_tables.cpp
-    ${IMGUI_DIR}/imgui_widgets.cpp
-    ${IMGUI_DIR}/backends/imgui_impl_sdl2.cpp
-    ${IMGUI_DIR}/backends/imgui_impl_metal.mm
-  )
-  target_include_directories(vb_imgui PUBLIC ${IMGUI_DIR} ${IMGUI_DIR}/backends)
-  target_link_libraries(vb_imgui PUBLIC
-    SDL2::SDL2
-    "-framework Metal" "-framework QuartzCore" "-framework Foundation"
-  )
-  # The Metal backend requires ARC: upstream builds it with -fobjc-arc, and
-  # its __bridge_retained/__bridge_transfer casts are no-ops under MRC
-  # (objects would under-retain and dangle).
-  set_source_files_properties(${IMGUI_DIR}/backends/imgui_impl_metal.mm
-    PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
-
-  # Window plumbing + draw code, engine-free (sees BoardModel only).
-  add_library(vb_gui STATIC gui/GuiApp.mm gui/BoardWindow.cpp)
-  set_source_files_properties(gui/GuiApp.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
-  target_link_libraries(vb_gui PUBLIC vb_script vb_board vb_imgui)
-
-  # One demo executable per verilated design (decision log); interim until
-  # the phase-2 `virtualbasys run` CLI subsumes them.
-  add_executable(virtualbasys_counter gui/main_counter.cpp)
-  target_compile_definitions(virtualbasys_counter PRIVATE
-    VB_DEFAULT_XDC="${CMAKE_SOURCE_DIR}/examples/counter.xdc")
-  target_link_libraries(virtualbasys_counter PRIVATE vb_gui vb_engine sim_counter)
-
-  add_executable(virtualbasys_stopwatch gui/main_stopwatch.cpp)
-  target_compile_definitions(virtualbasys_stopwatch PRIVATE
-    VB_DEFAULT_XDC="${CMAKE_SOURCE_DIR}/examples/stopwatch.xdc")
-  target_link_libraries(virtualbasys_stopwatch PRIVATE vb_gui vb_engine sim_stopwatch)
-
-  add_executable(virtualbasys_uart_echo gui/main_uart_echo.cpp)
-  target_compile_definitions(virtualbasys_uart_echo PRIVATE
-    VB_DEFAULT_XDC="${CMAKE_SOURCE_DIR}/examples/uart_echo.xdc")
-  target_link_libraries(virtualbasys_uart_echo PRIVATE vb_gui vb_engine sim_uart_echo)
-
-  add_executable(virtualbasys_vga gui/main_vga.cpp)
-  target_compile_definitions(virtualbasys_vga PRIVATE
-    VB_DEFAULT_XDC="${CMAKE_SOURCE_DIR}/examples/vga_pattern.xdc")
-  target_link_libraries(virtualbasys_vga PRIVATE vb_gui vb_engine sim_vga_pattern)
-endif()
 
 # Keep Qt discovery and autogen settings local to this optional frontend.
 if(VB_BUILD_QT_GUI)

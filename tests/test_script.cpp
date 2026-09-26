@@ -1,6 +1,6 @@
-// The scripted-stimulus parser, demo CLI, and the engine-free board pieces
+// The scripted-stimulus parser, launcher CLI, and the engine-free board pieces
 // (seven-seg decode + decay boundary, UART decoder/driver): pure functions,
-// no SDL, no engine.
+// no frontend, no engine.
 #include "board/SevenSeg.h"
 #include "board/Uart.h"
 #include "check.h"

@@ -129,7 +129,7 @@ would briefly sit over the tab bar until the next layout pass.
 ## Performance
 
 ```sh
-cmake -S . -B build/qt -DVB_BUILD_QT_GUI=ON -DVB_BUILD_GUI=OFF -DVB_BUILD_BENCHMARKS=ON
+cmake -S . -B build/qt -DVB_BUILD_QT_GUI=ON -DVB_BUILD_BENCHMARKS=ON
 cmake --build build/qt --target benchmark_qt_refresh_counter benchmark_qt_control_counter -j 8
 ./build/qt/bench/benchmark_qt_refresh_counter 20000000 3   # also _stopwatch, _uart_echo, _vga_pattern
 ./build/qt/bench/benchmark_qt_control_counter 20000000 3   # also _stopwatch

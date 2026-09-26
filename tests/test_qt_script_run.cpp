@@ -1,5 +1,5 @@
 // Scripted runs through the Qt controller. Oracle: the shared scheduler driven
-// directly on a second board (the legacy demos' loop), so every advance path
+// directly on a second board (the reference loop), so every advance path
 // — Run batches of any size, Step and Reset — must apply script events at the
 // same exact cycles and produce the same structured log.
 #include VB_MODEL_HEADER
@@ -73,7 +73,7 @@ struct Run : Board {
   Controller controller;
 };
 
-std::vector<std::string> legacyLog(const vb::RunOptions& options) {
+std::vector<std::string> referenceLog(const vb::RunOptions& options) {
   Board oracle;
   vb::ScriptCursor cursor;
   vb::initializeScriptedRun(oracle.board, options, cursor);
@@ -91,7 +91,7 @@ const std::vector<std::string> kInputs{
 
 void batchSizesDoNotMatter() {
   const auto options = script(kInputs);
-  const auto expected = legacyLog(options);
+  const auto expected = referenceLog(options);
   CHECK(expected.size() > 40);
   for (uint64_t batch : {uint64_t{100'000}, uint64_t{997}, uint64_t{1}, uint64_t{1'000'000}}) {
     Run run(batch, batch == 997);
@@ -274,7 +274,7 @@ void zeroFramesAndUnlimitedRuns() {
 // clears and stops: the view reads lines without removing any.
 void retainedLogWithTheLogView() {
   const auto options = script(kInputs);
-  const auto expected = legacyLog(options);
+  const auto expected = referenceLog(options);
   Run run(100'000, true);
   CHECK(run.adapter.setBoardLogRetained(true));
   CHECK(run.controller.startScript(options));
@@ -368,7 +368,7 @@ void scriptedSendsInTheTerminal() {
     Run run(publishEveryBatch ? 997 : 1'000'000, publishEveryBatch);
     CHECK(run.controller.startScript(options));
     CHECK(run.runToEnd());
-    CHECK(run.board.structuredLog() == legacyLog(options));
+    CHECK(run.board.structuredLog() == referenceLog(options));
     const auto& console = *run.adapter.uart();
     CHECK_EQ(console.rxBytes(), 6);
     CHECK_EQ(console.txBytes(), 6);

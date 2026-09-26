@@ -23,7 +23,7 @@ appears: BTNC is held for 16 cycles, the same as clicking **Reset**. Without tha
 pulse, `uart_echo`'s two-flop receiver synchronizer starts low (registers
 without an initial value start at zero), sees a false start bit and echoes
 `0xFF`. Design rule R6 says every design needs an explicit btnC reset, and the
-legacy demos apply the same startup pulse. The terminal's first row records it.
+earlier ImGui demos applied the same startup pulse. The terminal's first row records it.
 
 ## Reading the terminal
 
@@ -200,7 +200,7 @@ VB_QT_SCREENSHOT_DIR="$PWD/build/qt/uart-captures" ./build/qt/src/qt/test_qt_uar
 ## Performance
 
 ```sh
-cmake -S . -B build/qt -DVB_BUILD_QT_GUI=ON -DVB_BUILD_GUI=OFF -DVB_BUILD_BENCHMARKS=ON
+cmake -S . -B build/qt -DVB_BUILD_QT_GUI=ON -DVB_BUILD_BENCHMARKS=ON
 cmake --build build/qt --target benchmark_qt_control_uart_echo -j 8
 ./build/qt/bench/benchmark_qt_control_uart_echo 20000000 3
 ```

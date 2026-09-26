@@ -39,7 +39,7 @@ add_test(NAME board_model COMMAND test_board_model
   "${CMAKE_SOURCE_DIR}/examples/counter.xdc"
 )
 
-# --- stimulus/CLI parsing: pure functions, no SDL, no engine ---------------
+# --- stimulus/CLI parsing: pure functions, no frontend, no engine ----------
 add_executable(test_script test_script.cpp)
 target_link_libraries(test_script PRIVATE vb_script)
 add_test(NAME script COMMAND test_script)

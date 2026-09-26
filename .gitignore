@@ -2,7 +2,6 @@ build/
 *.vcd
 *.fst
 *.bmp
-imgui.ini
 .DS_Store
 
 # Local agent instructions, settings and session notes

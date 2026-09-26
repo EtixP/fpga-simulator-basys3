@@ -41,7 +41,7 @@ void advanceScripted(BoardModel& board, const RunOptions& opts,
 void initializeScriptedRun(BoardModel& board, const RunOptions& opts,
                            ScriptCursor& cursor, const ScriptSend& send) {
   if (board.now() != 0 || cursor.event != 0 || cursor.send != 0)
-    throw std::logic_error("demo startup requires a new board and script cursor");
+    throw std::logic_error("scripted startup requires a new board and script cursor");
   if (!opts.logPath.empty()) board.setLogEnabled(true);
   if (opts.maxFrames == 0) return;
 

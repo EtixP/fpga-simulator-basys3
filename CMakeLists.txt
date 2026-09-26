@@ -9,14 +9,17 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # VERILATOR_ROOT. Versions pinned in docs/versions.md.
 find_package(verilator REQUIRED)
 
-option(VB_BUILD_GUI "Build the Dear ImGui SDL2/Metal GUI (macOS)" ON)
 option(VB_BUILD_QT_GUI "Build the Qt Quick frontend" OFF)
 option(VB_BUILD_BENCHMARKS "Build headless and optional Qt performance benchmarks" OFF)
 
 enable_testing()
 add_subdirectory(examples)  # verilated design libraries (sim_*)
-add_subdirectory(src)       # engine, constraints, board, gui
+add_subdirectory(src)       # engine, constraints, board, script, Qt frontend
 add_subdirectory(tests)
+
+if(NOT VB_BUILD_QT_GUI)
+  message(STATUS "VirtualBasys: headless build; configure with -DVB_BUILD_QT_GUI=ON for the Qt launchers")
+endif()
 
 if(VB_BUILD_BENCHMARKS)
   add_subdirectory(bench)

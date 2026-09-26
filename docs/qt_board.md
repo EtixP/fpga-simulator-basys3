@@ -3,7 +3,7 @@
 M3 adds the complete Basys 3 presentation to the Qt workspace: 16 switches,
 16 LEDs, five momentary buttons and four seven-segment digits. M4 connects the
 counter and stopwatch in separate launchers with [simulation controls](qt_control.md).
-`--preview` retains the disabled board view. The existing ImGui demos remain available.
+`--preview` retains the disabled board view.
 
 ## Interaction and presentation
 

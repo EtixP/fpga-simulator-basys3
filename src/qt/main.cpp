@@ -37,9 +37,9 @@
 Q_IMPORT_QML_PLUGIN(VirtualBasys_BoardPlugin)
 
 namespace {
-// Scripted-run options, parsed by the shared launcher CLI (script/RunArgs.cpp)
-// with the same syntax and messages as every frontend. They leave the argument
-// list in their original order, which decides the order of same-cycle inputs.
+// Scripted-run options, parsed by the shared launcher CLI (script/RunArgs.cpp),
+// which also defines their messages. They leave the argument list in their
+// original order, which decides the order of same-cycle inputs.
 constexpr std::array<const char*, 7> kRunOptions{
     "--xdc", "--frames", "--screenshot", "--log", "--at", "--switches", "--send"};
 
@@ -61,8 +61,8 @@ SplitArguments splitArguments(const QStringList& arguments) {
     for (qsizetype i = 1; i < arguments.size(); ++i) {
         const QString& argument = arguments[i];
         // Run options take their value as the next argument only. An inline
-        // "--frames=1" goes to parseRunArgs whole, which rejects it as the
-        // legacy demos did, instead of Qt's parser accepting and ignoring it.
+        // "--frames=1" goes to parseRunArgs whole, which rejects it, instead
+        // of Qt's parser accepting and ignoring it.
         if (const auto equals = argument.indexOf(QLatin1Char('='));
             equals > 0 && isRunOption(argument.left(equals))) {
             split.scripted = true;
@@ -97,8 +97,8 @@ std::string readConstraints(const std::string& path, bool builtIn) {
     return text.str();
 }
 
-// The image format follows the file name; names without a known image suffix
-// get BMP, as the legacy demos always wrote.
+// The image format follows the file name; names without a suffix Qt can write
+// get BMP.
 bool saveScreenshot(const QImage& image, const QString& path) {
     const QByteArray suffix = QFileInfo(path).suffix().toLower().toLatin1();
     const bool known = !suffix.isEmpty() && QImageWriter::supportedImageFormats().contains(suffix);
@@ -110,8 +110,7 @@ bool saveScreenshot(const QImage& image, const QString& path) {
 
 #ifdef Q_OS_UNIX
 // Ctrl-C and SIGTERM end the app normally, so a scripted run still writes its
-// --log, as the legacy demos did through SDL's quit event. The handler only
-// writes to a pipe; the event loop quits.
+// --log. The handler only writes to a pipe; the event loop quits.
 int signalPipe[2] = {-1, -1};
 void quitOnSignal(int) {
     const int savedErrno = errno;
@@ -252,8 +251,8 @@ int main(int argc, char* argv[]) {
     // Some examples need their btnC reset (R6) before their outputs mean
     // anything: uart_echo's receiver synchronizer powers up low and decodes a
     // false start bit; vga_pattern's syncs power up asserted, giving the monitor
-    // a false first edge. Apply the Reset control's 16-cycle pulse once, as the
-    // legacy demos do at startup. A scripted run's startup already did.
+    // a false first edge. Apply the Reset control's 16-cycle pulse once at
+    // startup. A scripted run's startup already did.
     else if (board && !controller.reset()) {
         qCritical() << "Cannot apply the startup reset:" << controller.errorString();
         return EXIT_FAILURE;
@@ -308,8 +307,7 @@ int main(int argc, char* argv[]) {
     // appears, and exit. The log is written below for every scripted run.
     bool artifactFailure = false;
     const auto finishRun = [&] {
-        // --frames 0 is a launch check: like the legacy demos, it renders and
-        // saves nothing.
+        // --frames 0 is a launch check: it saves nothing.
         if (!run.run.screenshotPath.empty() && run.run.maxFrames > 0
             && !saveScreenshot(window->grabWindow(), QString::fromStdString(run.run.screenshotPath))) {
             std::fprintf(stderr, "error: could not write screenshot '%s'\n",

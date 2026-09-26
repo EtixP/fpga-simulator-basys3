@@ -9,7 +9,7 @@ class BoardModel;
 
 // One scripted input event. CYCLE-indexed, deliberately not frame-indexed:
 // cycles are the engine's native, pacing-invariant unit (R1), so scripts
-// keep their meaning across kCyclesPerFrame tweaks and phase-2 realtime
+// keep their meaning across cyclesPerFrame tweaks and phase-2 realtime
 // pacing. An event at cycle N is applied when now()==N (poked before further
 // stepping), so the design first samples it at edge N+1 — matching the
 // structured log's input semantics.

@@ -1,6 +1,6 @@
-// Scripted Qt launcher runs against the legacy scripted-run loop. The launcher
+// Scripted Qt launcher runs against the reference scripted-run loop. The launcher
 // runs offscreen as a separate process; the oracle replays the same arguments
-// in-process exactly as the legacy demos did: the shared startup, then one
+// in-process as the ImGui demos (removed in M8) did: the shared startup, then one
 // scripted advance of cyclesPerFrame cycles per frame. The log files must be
 // byte-identical, whatever batches the Qt controller advanced in.
 //
@@ -39,11 +39,11 @@ std::string readFile(const std::string& path) {
   return text.str();
 }
 
-// The legacy demos' loop (GuiApp.mm): startup, then maxFrames advances of one
-// frame each. Returns the structured log as the launcher writes it.
-std::string legacyLog(const std::vector<std::string>& arguments) {
+// The reference loop, which the ImGui demos ran: startup, then maxFrames
+// advances of one frame each. Returns the structured log as the launcher writes it.
+std::string referenceLog(const std::vector<std::string>& arguments) {
   // --log turns logging on at startup; the oracle keeps the lines in memory.
-  std::vector<std::string> owned{"legacy", "--log", "in-memory"};
+  std::vector<std::string> owned{"reference", "--log", "in-memory"};
   owned.insert(owned.end(), arguments.begin(), arguments.end());
   std::vector<char*> argv;
   for (auto& argument : owned) argv.push_back(argument.data());
@@ -87,7 +87,7 @@ Result launch(const std::vector<std::string>& arguments) {
 }
 
 // Runs the launcher with the script plus --log (and --screenshot) and compares
-// its log with the legacy loop's. Returns the launcher's stderr.
+// its log with the reference loop's. Returns the launcher's stderr.
 QString checkRun(const QTemporaryDir& dir, const char* name, std::vector<std::string> script,
                  bool screenshot = true) {
   const std::string log = QDir(dir.path()).filePath(QStringLiteral("%1.log").arg(name)).toStdString();
@@ -99,7 +99,7 @@ QString checkRun(const QTemporaryDir& dir, const char* name, std::vector<std::st
   if (result.exitCode != 0) std::fprintf(stderr, "%s\n", qPrintable(result.errors));
   CHECK_EQ(result.exitCode, 0);
   const std::string actual = readFile(log);
-  const std::string expected = legacyLog(script);
+  const std::string expected = referenceLog(script);
   if (actual != expected)
     std::fprintf(stderr, "%s: log differs (%zu vs %zu bytes)\n", name, actual.size(), expected.size());
   CHECK(actual == expected);
@@ -134,7 +134,7 @@ int main(int argc, char** argv) {
         "--at", "150000:BTNU=1", "--at", "250000:SW0=0", "--at", "99999999:SW3=1"});
     CHECK(errors.contains(QStringLiteral(
         "warning: 1 scripted --at event(s) beyond the run horizon were never applied")));
-    CHECK(lines(legacyLog({"--frames", "3", "--switches", "0101"})) > 20);
+    CHECK(lines(referenceLog({"--frames", "3", "--switches", "0101"})) > 20);
     // A scripted BTNC hold takes over the startup reset and outlasts it.
     checkRun(dir, "counter-reset", {"--frames", "2", "--at", "5:BTNC=1", "--at", "40:BTNC=0",
                                     "--switches", "1"});
@@ -142,18 +142,18 @@ int main(int argc, char** argv) {
     // cleared then set at cycle 0, SW1 set then cleared at 500.
     const std::vector<std::string> order{"--frames", "1", "--at", "0:SW0=0", "--switches", "1",
                                          "--at", "500:SW1=1", "--at", "500:SW1=0"};
-    const std::string ordered = legacyLog(order);
+    const std::string ordered = referenceLog(order);
     CHECK(ordered.find("[cycle 0] SW0 0->1") != std::string::npos);
     CHECK(ordered.find("[cycle 0] SW0 1->0") == std::string::npos);  // not set then cleared
     CHECK(ordered.find("[cycle 500] SW1 1->0") != std::string::npos);
     checkRun(dir, "counter-order", order, false);
     // And the other way round: --switches first, then the clearing --at.
     const std::vector<std::string> reversed{"--frames", "1", "--switches", "1", "--at", "0:SW0=0"};
-    CHECK(legacyLog(reversed).find("[cycle 0] SW0 1->0") != std::string::npos);
+    CHECK(referenceLog(reversed).find("[cycle 0] SW0 1->0") != std::string::npos);
     checkRun(dir, "counter-reversed", reversed, false);
     // Zero frames: no reset, no inputs, no time; the log is its header.
     checkRun(dir, "counter-zero", {"--frames", "0", "--switches", "1111"}, false);
-    CHECK_EQ(lines(legacyLog({"--frames", "0"})), 6);
+    CHECK_EQ(lines(referenceLog({"--frames", "0"})), 6);
     // Other constraints: the swapped binding moves LEDs and switches.
     const std::string swapped = std::string(VB_SOURCE_DIR) + "/tests/data/counter_swapped.xdc";
     checkRun(dir, "counter-xdc", {"--xdc", swapped, "--frames", "2", "--switches", "0011"}, false);
@@ -169,7 +169,7 @@ int main(int argc, char** argv) {
     const Result empty = launch({"--xdc", ""});  // e.g. an unset shell variable
     CHECK_EQ(empty.exitCode, 1);
     CHECK(empty.errors.contains(QStringLiteral("error: cannot read XDC ''")));
-    // Constraint diagnostics pass through, prefixed as in the legacy demos.
+    // Constraint diagnostics pass through, prefixed "xdc" and "bind".
     const QString odd = QDir(dir.path()).filePath(QStringLiteral("odd.xdc"));
     {
       QFile file(odd);
@@ -248,7 +248,7 @@ int main(int argc, char** argv) {
     const Result stray = launch({"--frames", "1", "--send", "100:hello", "world"});
     CHECK_EQ(stray.exitCode, 1);
     CHECK(stray.errors.contains(QStringLiteral("error: unknown or incomplete argument 'world'")));
-    // Errors come in argument order, "--" included, as in the legacy demos.
+    // Errors come in argument order, "--" included.
     const Result mixed = launch({"one", "--frames", "x", "--", "two"});
     CHECK_EQ(mixed.exitCode, 1);
     const auto at = [&](const char* message) { return mixed.errors.indexOf(QString::fromLatin1(message)); };
@@ -274,12 +274,12 @@ int main(int argc, char** argv) {
         "--frames", "300", "--at", "100000:BTNU=1", "--at", "1300000:BTNU=0",
         "--at", "12500000:BTNL=1", "--at", "13700000:BTNL=0",
         "--at", "20000000:BTNU=1", "--at", "21200000:BTNU=0"};
-    const std::string expected = legacyLog(presses);
+    const std::string expected = referenceLog(presses);
     CHECK(expected.find("SSEG[0] '8'->'9'") != std::string::npos);
     checkRun(dir, "stopwatch", presses);
   } else if (design == "uart_echo") {
     // Two sends, one queued behind the other; the design echoes every byte.
-    const std::string expected = legacyLog({"--frames", "12", "--send", "100000:hello",
+    const std::string expected = referenceLog({"--frames", "12", "--send", "100000:hello",
                                             "--send", "150000:A"});
     CHECK(expected.find("UART TX 0x41 'A'") != std::string::npos);
     checkRun(dir, "uart_echo", {"--frames", "12", "--send", "100000:hello", "--send", "150000:A"});
@@ -288,7 +288,7 @@ int main(int argc, char** argv) {
     // one after it (reported); the monitor's frame is in the screenshot.
     const QString errors = checkRun(dir, "vga_pattern", {"--frames", "2", "--at", "3400016:BTNC=1",
                                                          "--at", "3400017:BTNC=0"});
-    CHECK(legacyLog({"--frames", "2", "--at", "3400016:BTNC=1"}).find("[cycle 3400016] BTNC 0->1")
+    CHECK(referenceLog({"--frames", "2", "--at", "3400016:BTNC=1"}).find("[cycle 3400016] BTNC 0->1")
           != std::string::npos);
     CHECK(errors.contains(QStringLiteral(
         "warning: 1 scripted --at event(s) beyond the run horizon were never applied")));

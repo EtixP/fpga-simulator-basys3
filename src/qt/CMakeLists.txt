@@ -16,7 +16,7 @@ qt_add_qml_module(vb_qt_adapter STATIC
 )
 target_include_directories(vb_qt_adapter PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/..")
 # Gui/Quick: the VGA frame image and its scene-graph display item. vb_script:
-# scripted runs advance through the same scheduler as every frontend.
+# scripted runs advance through the shared scheduler (src/script).
 target_link_libraries(vb_qt_adapter PUBLIC Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick vb_script
                       PRIVATE vb_board)
 
@@ -59,7 +59,7 @@ endfunction()
 vb_add_qt_example(virtualbasys_qt counter Counter)
 vb_add_qt_example(virtualbasys_qt_stopwatch stopwatch Stopwatch)
 vb_add_qt_example(virtualbasys_qt_uart uart_echo "UART Echo" STARTUP_RESET)
-# One VGA frame per scripted frame, as in the legacy VGA demo.
+# About one VGA frame (1,680,000 cycles) per scripted frame.
 vb_add_qt_example(virtualbasys_qt_vga vga_pattern "VGA Pattern" STARTUP_RESET
                   CYCLES_PER_FRAME 1700000)
 
@@ -271,7 +271,7 @@ if(VB_BUILD_BENCHMARKS)
     Qt6::Test Qt6::Quick Qt6::Qml Qt6::QuickControls2)
 endif()
 
-# Scripted launcher runs (offscreen processes) against the legacy scripted-run
+# Scripted launcher runs (offscreen processes) against the reference scripted-run
 # loop replayed in-process on the same design: byte-identical logs.
 foreach(entry "virtualbasys_qt;counter;100000" "virtualbasys_qt_stopwatch;stopwatch;100000"
               "virtualbasys_qt_uart;uart_echo;100000" "virtualbasys_qt_vga;vga_pattern;1700000")

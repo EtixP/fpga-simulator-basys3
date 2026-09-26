@@ -14,9 +14,9 @@ struct SendEvent {
   std::string text;
 };
 
-// A scripted run, shared by every frontend. Virtual time is never tied to
-// wall clock (R1): a run's length is a fixed cycle budget, frames * cyclesPerFrame
-// after the 16-cycle startup reset, however fast the frontend presents it.
+// A scripted run, as the launchers and tests describe it. Virtual time is never
+// tied to wall clock (R1): a run's length is a fixed cycle budget, frames *
+// cyclesPerFrame after the 16-cycle startup reset, however fast it is shown.
 struct RunOptions {
   // Fixed virtual-time budget per frame. Real-time at 60 fps would be
   // ~1'666'667; the default is deliberately slower so fast-counting designs
@@ -27,7 +27,6 @@ struct RunOptions {
   std::string logPath;          // enables the structured log; written at exit
   std::vector<StimulusEvent> stimulus;  // cycle-indexed, sorted by cycle
   std::vector<SendEvent> sends;         // cycle-indexed, sorted by cycle
-  std::string windowTitle = "VirtualBasys";
 };
 
 // Shared CLI for the launchers:

@@ -9,11 +9,12 @@ workflow must pin these same versions.
 | CMake | 4.0.0 | Homebrew | `find_package(verilator)` + `verilate()` verified against it |
 | Apple clang | 21.0.0 (clang-2100.1.1.101) | Xcode CLT | C++20 |
 | Yosys | 0.66 | Homebrew | installed, first used in phase 3 (synthesis / NetlistEngine) |
-| SDL2 | sdl2-compat 2.32.70 | Homebrew | GUI; found via find_package(SDL2 CONFIG) |
-| Dear ImGui | v1.92.8 | git submodule (third_party/imgui) | pinned to release tag; SDL2+Metal in-tree backends |
 | Qt | 6.11.2 | Homebrew `qtbase` + `qtdeclarative` | optional Qt frontend; minimum 6.5; Core/Gui/Quick/Qml/QuickControls2, Test for adapter tests |
 | Surfer | 0.7.0 | Homebrew | VCD acceptance gate (headless `surfer server`); NOTE: Homebrew's gtkwave cask is DISABLED upstream — GTKWave only via GitHub-release app, manual |
 | macOS | Darwin 25.5.0, arm64 | — | Apple Silicon primary target |
+
+SDL2 (sdl2-compat 2.32.70) and Dear ImGui (v1.92.8, a git submodule) served the
+first frontend until M8 removed it; the Qt frontend replaced them.
 
 ## Verilation flags (all designs)
 
@@ -80,17 +81,18 @@ Measured through the exact BoardModel::tick VGA path (3 warmed runs):
 | raw step() ceiling (no pixel capture) | ~18 | ~10.8 |
 | engine.stepCapture (14-bit VGA watch set) | ~15.8 | ~9.4 |
 | full tick (grid+UART split + stepCapture + assembler) | ~15.0 | ~9.0 |
-| integrated GUI (with SDL/Metal present) | — | ~8.6 |
+| integrated GUI (the ImGui/SDL/Metal frontend, removed in M8) | — | ~8.6 |
 
 The frame-producing path is stepCapture-bound at **~9 fps** — JUST UNDER the
 ">= 10 simulated fps" VGA performance guide on this hardware. That is a guide, not
-a promise: the demo renders frame-accurately and the honest speed banner
-shows the real per-frame fps and multiplier (never smoothed), so a run under
-load reads e.g. "8.6 fps — 0.15x real-time" truthfully. The milestone's
+a promise: the ImGui demo rendered frame-accurately and its honest speed banner
+showed the real per-frame fps and multiplier (never smoothed), so a run under
+load read e.g. "8.6 fps — 0.15x real-time" truthfully. The Qt frontend's
+measured speed indicator follows the same rule; see docs/qt_control.md. The milestone's
 Definition of Done — the pixel-exact headless golden — is framerate-
 independent and passes in ~0.8 s. The tap (vb_engine) and assembler
 (vb_board) carry -O2 like the sim_* libraries (the default build type is
-often empty/-O0); without it the demo runs ~2x slower.
+often empty/-O0); without it the VGA path ran ~2x slower.
 
 ## VCD viewer verification (R3 / milestone 1.4)
 

@@ -14,7 +14,7 @@ bars at 640 × 480 with a 25 MHz pixel clock (4 master cycles per pixel), a whit
 top and sides, and a blue bottom row. Like the UART launcher, it applies one
 16-cycle Reset before the window opens, so it starts at cycle 16. The design's
 sync outputs start low (asserted) until btnC reset (R6), which would give the
-monitor a false first edge. The legacy demo applied the same reset.
+monitor a false first edge. The earlier ImGui demo applied the same reset.
 
 ## What you see
 
@@ -104,7 +104,7 @@ used. The window redraws only when a frame or text changes.
 ## Performance of the full window
 
 ```sh
-cmake -S . -B build/qt -DVB_BUILD_QT_GUI=ON -DVB_BUILD_GUI=OFF -DVB_BUILD_BENCHMARKS=ON
+cmake -S . -B build/qt -DVB_BUILD_QT_GUI=ON -DVB_BUILD_BENCHMARKS=ON
 cmake --build build/qt --target benchmark_qt_control_vga_pattern benchmark_qt_vga_display -j 8
 ./build/qt/bench/benchmark_qt_control_vga_pattern 20000000 3
 ./build/qt/bench/benchmark_qt_vga_display 16800000 3

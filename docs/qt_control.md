@@ -99,7 +99,7 @@ The running screenshot uses the real clock and timer, not injected measurements.
 ## Performance reproduction
 
 ```sh
-cmake -S . -B build/qt -DVB_BUILD_QT_GUI=ON -DVB_BUILD_GUI=OFF -DVB_BUILD_BENCHMARKS=ON
+cmake -S . -B build/qt -DVB_BUILD_QT_GUI=ON -DVB_BUILD_BENCHMARKS=ON
 cmake --build build/qt --target benchmark_qt_control_counter benchmark_qt_control_stopwatch -j 8
 ./build/qt/bench/benchmark_qt_control_counter 20000000 3
 ./build/qt/bench/benchmark_qt_control_stopwatch 20000000 3

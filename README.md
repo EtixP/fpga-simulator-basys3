@@ -1,23 +1,22 @@
 # VirtualBasys
 
 A virtual Basys 3 FPGA board for running Verilog designs without hardware.
-Built with **C++20 and Verilator** for macOS; migration to **Qt 6 / Qt Quick** is in progress.
+Built with **C++20 and Verilator** for macOS, with a **Qt 6 / Qt Quick** frontend.
 
 ## Current progress
 
 | Area | Status |
 | --- | --- |
 | Simulator | Working XDC pin bindings, switches, LEDs, buttons, seven-segment display, UART, VGA, VCD traces and regression tests. Counter, stopwatch, UART echo and VGA pattern examples are included. |
-| Qt frontend — M0–M7 complete | Counter, stopwatch, UART echo and VGA pattern launchers, resizable workspace, board controls, Run/Pause/Step/Reset, exact virtual time and measured speed. Turbo and best-effort real-time pacing. UART terminal with cycle-stamped TX/RX rows, send, hex view, clear and bounded scrollback. Pixel-exact VGA monitor showing each completed frame with its cycle and the monitor's signal diagnosis. Signal inspector with pin bindings, change highlighting and RTL watches; filterable, cycle-stamped event log. |
-| M8 — in progress | Scripted runs (`--frames`, `--at`, `--switches`, `--send`, `--log`, `--screenshot`, `--xdc`) ported to Qt with byte-identical results; status polish. Next: removal of the legacy GUI. |
+| Qt frontend — M0–M8 complete | Counter, stopwatch, UART echo and VGA pattern launchers, resizable workspace, board controls, Run/Pause/Step/Reset, exact virtual time and measured speed. Turbo and best-effort real-time pacing. UART terminal with cycle-stamped TX/RX rows, send, hex view, clear and bounded scrollback. Pixel-exact VGA monitor showing each completed frame with its cycle and the monitor's signal diagnosis. Signal inspector with pin bindings, change highlighting and RTL watches; filterable, cycle-stamped event log. Scripted runs (`--frames`, `--at`, `--switches`, `--send`, `--log`, `--screenshot`, `--xdc`). |
+| Migration — complete | The earlier Dear ImGui/SDL2 frontend was removed in M8 after its scripted runs were matched byte for byte. Next: loading arbitrary designs. |
 
 **Qt runs all four built-in examples**, each in its own launcher, interactively
-or as reproducible scripted runs. Loading arbitrary designs is still pending;
-the legacy ImGui demos remain available until the M8 removal step.
+or as reproducible scripted runs. Loading arbitrary designs is still pending.
 
-M8 scripted-run verification: **44/44 full-suite checks**, **18/18 headless
-checks** and **26/26 Qt sanitizer checks**; the Qt launchers and the legacy demos
-write byte-identical logs for the same scripts.
+M8 verification: **44/44 full-suite checks**, **18/18 headless checks** and
+**26/26 Qt sanitizer checks** without the legacy frontend. Before its removal,
+the Qt launchers wrote byte-identical logs to the ImGui demos for the same scripts.
 [Scripted runs](docs/qt_scripted_runs.md) · [Inspector and log](docs/qt_inspector_log.md) · [VGA monitor](docs/qt_vga.md) ·
 [UART terminal](docs/qt_uart.md) · [Simulation controls](docs/qt_control.md) ·
 [Roadmap](docs/migration_plan.md)
@@ -30,7 +29,7 @@ write byte-identical logs for the same scripts.
 
 Captured by the native simulation and UART UI tests. Scripted runs set inputs
 and send text at exact cycles, stop at their last cycle and write the same logs
-as the legacy demos.
+as the removed ImGui demos did.
 
 | Inspector with an RTL watch | Event log filtered to one LED |
 | --- | --- |
@@ -68,7 +67,7 @@ On macOS with Xcode Command Line Tools and Homebrew, run from the repository roo
 
 ```sh
 brew install cmake verilator qtbase qtdeclarative
-cmake -S . -B build/qt -DVB_BUILD_QT_GUI=ON -DVB_BUILD_GUI=OFF
+cmake -S . -B build/qt -DVB_BUILD_QT_GUI=ON
 cmake --build build/qt -j 8
 ./build/qt/src/qt/virtualbasys_qt
 ./build/qt/src/qt/virtualbasys_qt_stopwatch
