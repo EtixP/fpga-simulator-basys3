@@ -33,10 +33,10 @@ constexpr const char* kStagePrefix = ".stage-";
 constexpr const char* kStalePrefix = ".stale-";
 
 // Verilator's flags for a user design, as in the build (src/design/module):
-// every source is Verilog-2005, as Vivado reads .v files (R5), and warnings
-// are shown without stopping the design.
+// as Vivado reads them, .sv sources are SystemVerilog and every other source
+// is Verilog-2005 (R5), and warnings are shown without stopping the design.
 const char* const kFlags[] = {"--public-flat-rw", "--timescale", "1ns/1ns", "-Wno-fatal",
-                              "--default-language", "1364-2005"};
+                              "--default-language", "1364-2005", "+1800-2023ext+sv"};
 
 bool readFile(const fs::path& path, std::string& text) {
   std::ifstream in(path, std::ios::binary);

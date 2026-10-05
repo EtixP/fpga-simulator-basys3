@@ -1,6 +1,7 @@
 # Running your own designs
 
-`virtualbasys run` runs any synthesizable Verilog design on the virtual Basys 3.
+`virtualbasys run` runs any synthesizable Verilog or SystemVerilog design on the
+virtual Basys 3.
 The design is verilated and compiled the first time you run it, then cached.
 
 ```sh
@@ -59,9 +60,14 @@ Ctrl-C, SIGTERM or closing the terminal during a compile stops it at once:
 
 ## The Verilog you can use
 
-- **Verilog-2005.** Every source is read as IEEE 1364-2005, as Vivado reads `.v`
-  files, whatever its extension. SystemVerilog constructs such as `logic` or
-  `always_ff` are Verilator syntax errors (R5).
+- **Verilog and SystemVerilog.** As Vivado reads them, `.sv` sources are
+  SystemVerilog (`logic`, `always_ff`, `always_comb`, `enum`, `unique case`,
+  packages and so on) and every other source is Verilog-2005 (IEEE 1364-2005),
+  where SystemVerilog constructs are Verilator syntax errors (R5). The
+  extension is matched as written: `.SV` is read as Verilog-2005. An
+  `` `include ``d file is read in the language of the file that includes it.
+  Constructs beyond the synthesizable subset, such as classes, are whatever
+  Verilator makes of them.
 - **Other deferred constructs** (R5) are not refused by VirtualBasys itself.
   Latches and loops get Verilator's warnings, as above. Xilinx primitives such
   as an MMCM are modules Verilator cannot find, which is an error. Anything
@@ -117,8 +123,9 @@ Ctrl-C, SIGTERM or closing the terminal during a compile stops it at once:
    to it. A read-only cache still serves the modules it has.
 3. **Build.** On a cache miss, a small CMake project in `src/design/module`
    verilates the design with the examples' flags (`--public-flat-rw
-   --trace-vcd --timescale 1ns/1ns`, `-O2`) plus `-Wno-fatal` and
-   `--default-language 1364-2005`. It compiles the design into one loadable
+   --trace-vcd --timescale 1ns/1ns`, `-O2`) plus `-Wno-fatal`,
+   `--default-language 1364-2005` and `+1800-2023ext+sv`. It compiles the
+   design into one loadable
    module, `design.so`, together with the engine code the examples use
    (`VerilatorEngine`).
    - **Isolation.** The build runs in a private directory under `$TMPDIR`, with
@@ -177,7 +184,9 @@ window), 14.3 and 13.7 Mcycles/s.
     rebuild after an edit;
   - warnings shown while the design runs, including `LATCH` and `UNOPTFLAT`;
     a syntax error with Verilator's exact message; SystemVerilog refused in
-    `.v` and `.sv` files;
+    `.v` files;
+  - a `.sv` design built and run: an enum state machine from an included
+    `.svh`, `always_ff`, `unique case`;
   - several tops with and without `--top`, and an unknown top;
   - include directories, including a rebuild after editing only an included file;
   - a design in a directory with a space, a semicolon and Hangul, with
@@ -225,7 +234,7 @@ window), 14.3 and 13.7 Mcycles/s.
     title, file list and preview text;
   - the Project pane's paths: relative in the working directory, `~/` in the
     home folder.
-- **Mutation checks.** 67 deliberate faults, each caught by the check meant
+- **Mutation checks.** 69 deliberate faults, each caught by the check meant
   for it, on a machine that stayed awake:
   - every review finding: a module stored after an edit during its build
     (also an undone one, through a link, or to an engine source), awkward
@@ -233,8 +242,8 @@ window), 14.3 and 13.7 Mcycles/s.
     directory, late-stage warnings, `run --preview`, and a repeated or empty
     `--top`;
   - each part of the cache key and of the file stamps, the build-input
-    check, the ABI check, the Verilog-2005 rule, the clock and reset rules,
-    and the Project pane's paths;
+    check, the ABI check, the Verilog-2005 and SystemVerilog rules, the clock
+    and reset rules, and the Project pane's paths;
   - the early checks and their messages, `--help`, the build log, the hint;
   - cancellation (also by SIGHUP, with warnings kept), the build's own
     process group, damaged entries and rebuilds, and the build's environment.

@@ -161,15 +161,15 @@ LauncherDesign runnerDesign() {
     design.boardDefaultXdc = true;
     design.startupReset = LauncherDesign::StartupReset::IfBtncBound;
     design.description = QStringLiteral(
-        "VirtualBasys: runs a Verilog design on the virtual Basys 3. Its sources are verilated and "
-        "compiled on the first run, then cached. Without --xdc the design uses the Basys 3 master "
-        "constraints, so its ports need the master file's names (clk, sw, led, btnC, seg, an, dp, "
-        "RsRx, RsTx, vgaRed...). A design that binds btnC gets one Reset pulse at startup.");
+        "VirtualBasys: runs a Verilog or SystemVerilog design on the virtual Basys 3. Its sources "
+        "are verilated and compiled on the first run, then cached. Without --xdc the design uses the "
+        "Basys 3 master constraints, so its ports need the master file's names (clk, sw, led, btnC, "
+        "seg, an, dp, RsRx, RsTx, vgaRed...). A design that binds btnC gets one Reset pulse at startup.");
     design.helpArgument = LauncherDesign::HelpArgument{
         QStringLiteral("run"),
-        QStringLiteral("Run a design: its Verilog-2005 source files, straight after run, then "
-                       "--top NAME (the top module, when there are several), -I DIR (an `include "
-                       "directory; repeatable) and the options above."),
+        QStringLiteral("Run a design: its source files (.v: Verilog-2005, .sv: SystemVerilog), "
+                       "straight after run, then --top NAME (the top module, when there are several), "
+                       "-I DIR (an `include directory; repeatable) and the options above."),
         QStringLiteral("run SOURCE.v [SOURCE.v ...] [--top NAME] [-I DIR]")};
     return design;
 }

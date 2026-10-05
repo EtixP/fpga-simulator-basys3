@@ -309,8 +309,11 @@ int main(int argc, char** argv) {
                                        QStringList{"run", "-I", "inc", "-h"}}) {
     const Result help = launch(app, arguments);
     CHECK_EQ(help.exitCode, 0);
-    CHECK(help.output.contains(QStringLiteral("[options] run SOURCE.v [SOURCE.v ...] [--top NAME] [-I DIR]")));
-    CHECK(help.output.contains(QStringLiteral("--top NAME (the top module")));
+    // Qt wraps the help to the terminal's width: compare the words.
+    const QString words = help.output.simplified();
+    CHECK(words.contains(QStringLiteral("[options] run SOURCE.v [SOURCE.v ...] [--top NAME] [-I DIR]")));
+    CHECK(words.contains(QStringLiteral("--top NAME (the top module")));
+    CHECK(words.contains(QStringLiteral("(.v: Verilog-2005, .sv: SystemVerilog)")));
   }
   const Result notHelp = launch(app, {"run", file("broken.v"), "--at", "-h"});
   CHECK_EQ(notHelp.exitCode, 1);

@@ -142,15 +142,14 @@ void diagnosticsAndTops() {
   CHECK(loop.ok);
   CHECK(loop.diagnostics.find("%Warning-UNOPTFLAT") != std::string::npos);
 
-  // Every source is Verilog-2005 (R5), whatever its extension.
-  for (const char* name : {"sv.v", "sv.sv"}) {
-    write(scratch / name, "module sv(input logic clk, output logic [15:0] led);\n"
+  // A .v source is Verilog-2005 (R5): SystemVerilog there is Verilator's
+  // syntax error, as in Vivado. (.sv sources: systemVerilog() below.)
+  write(scratch / "sv.v", "module sv(input logic clk, output logic [15:0] led);\n"
                           "  always_ff @(posedge clk) led <= led + 1;\n"
                           "endmodule\n");
-    const DesignBuild sv = fakeBuild({(scratch / name).string()});
-    CHECK(!sv.ok && sv.error == "Verilator rejected the design");
-    CHECK(sv.diagnostics.find("%Error: " + (scratch / name).string() + ":2:13: syntax error") != std::string::npos);
-  }
+  const DesignBuild sv = fakeBuild({(scratch / "sv.v").string()});
+  CHECK(!sv.ok && sv.error == "Verilator rejected the design");
+  CHECK(sv.diagnostics.find("%Error: " + (scratch / "sv.v").string() + ":2:13: syntax error") != std::string::npos);
 
   // A syntax error: Verilator's own message, verbatim, and no module.
   write(scratch / "broken.v", "module broken(input wire clk, output reg led);\n"
@@ -214,6 +213,38 @@ void includesAndMemoryFiles() {
   CHECK(memory);
   CHECK_EQ(peek(*memory, "mem0"), 0x96);
   CHECK_EQ(peek(*memory, "mem1"), 0x3b);
+}
+
+// A .sv source is SystemVerilog, as in Vivado, also in the build: an enum
+// state machine from an included .svh, always_ff, unique case and '0.
+void systemVerilog() {
+  write(scratch / "sv/types.svh", "typedef enum logic [1:0] {IDLE, RUN, DONE} state_t;\n");
+  write(scratch / "sv/fsm.sv", "`include \"types.svh\"\n"
+                               "module fsm(input logic clk, input logic btnC, output logic [15:0] led);\n"
+                               "  state_t state;\n"
+                               "  logic [7:0] count;\n"
+                               "  always_ff @(posedge clk)\n"
+                               "    if (btnC) begin state <= IDLE; count <= '0; end\n"
+                               "    else unique case (state)\n"
+                               "      IDLE: state <= RUN;\n"
+                               "      RUN: begin count <= count + 8'd3; if (count == 8'd30) state <= DONE; end\n"
+                               "      DONE: state <= DONE;\n"
+                               "    endcase\n"
+                               "  assign led = {6'b0, state, count};\n"
+                               "endmodule\n");
+  const DesignBuild fsm = build({(scratch / "sv/fsm.sv").string()}, {}, {(scratch / "sv").string()});
+  if (!fsm.ok) std::fprintf(stderr, "%s\n%s\n", fsm.error.c_str(), fsm.diagnostics.c_str());
+  CHECK(fsm.ok && fsm.top == "fsm");
+  std::string error;
+  auto engine = DesignModule::load(fsm.module, error)->createEngine("fsm", "clk", error);
+  CHECK(engine);
+  engine->poke(engine->lookup("btnC"), 1);
+  engine->step(1);
+  engine->poke(engine->lookup("btnC"), 0);
+  engine->step(5);  // IDLE, then RUN adding 3: 12
+  CHECK_EQ(peek(*engine, "led"), (1u << 8) | 12u);
+  engine->step(20);  // DONE once count reached 30; the same edge added 3
+  CHECK_EQ(peek(*engine, "led"), (2u << 8) | 33u);
 }
 
 // Paths CMake cannot build from (a space, a semicolon, Hangul); `include
@@ -653,6 +684,7 @@ int main(int argc, char** argv) {
   counterRunsCachesAndRebuilds();
   diagnosticsAndTops();
   includesAndMemoryFiles();
+  systemVerilog();
   awkwardPaths();
   foreignModulesAreRefused();
   cacheBehaviour();

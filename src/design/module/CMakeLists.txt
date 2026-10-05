@@ -28,8 +28,9 @@ target_compile_definitions(vb_design PRIVATE VB_ENGINE_INTERFACE_HASH="${VB_ENGI
 target_compile_options(vb_design PRIVATE -O2)
 
 # The examples' flags, except -Wall (shipped examples only) and with warnings
-# non-fatal: user designs run with their warnings shown (R5). Every source is
-# Verilog-2005, as in the app's check (DesignBuilder.cpp kFlags).
+# non-fatal: user designs run with their warnings shown (R5). .sv sources are
+# SystemVerilog and the rest Verilog-2005, as in the app's check
+# (DesignBuilder.cpp kFlags).
 verilate(vb_design
   SOURCES ${VB_DESIGN_SOURCES}
   TOP_MODULE ${VB_DESIGN_TOP}
@@ -37,5 +38,5 @@ verilate(vb_design
   INCLUDE_DIRS ${VB_DESIGN_INCLUDES}
   OPT_FAST "-O2" OPT_GLOBAL "-O2"
   VERILATOR_ARGS --public-flat-rw --trace-vcd --timescale 1ns/1ns -Wno-fatal
-                 --default-language 1364-2005
+                 --default-language 1364-2005 +1800-2023ext+sv
 )

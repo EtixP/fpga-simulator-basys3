@@ -34,7 +34,7 @@ baseline exist. No Qt implementation in P0–P3. Unmet requirements keep the gat
 ## After the migration
 | Milestone | Scope | Acceptance |
 |---|---|---|
-| M9 | `virtualbasys run`: any Verilog design, built into a loadable module at run time, cached; verbatim Verilator diagnostics | Loaded examples byte-identical to the prebuilt launchers; cache and error paths tested; two reviewers |
+| M9 | `virtualbasys run`: any Verilog or SystemVerilog design, built into a loadable module at run time, cached; verbatim Verilator diagnostics | Loaded examples byte-identical to the prebuilt launchers; cache and error paths tested; two reviewers |
 | M10 | Open, reload and build output in the window | Planned |
 
 Each milestone requires a successful build, relevant and full tests, invariant and
@@ -63,11 +63,11 @@ Existing goldens remain the acceptance baseline.
   and front end run on every launch for its diagnostics, top module, input
   ports and file list; a module keyed by those files, the tools and the engine
   sources is built in $TMPDIR by a CMake template with the examples' flags
-  (plus -Wno-fatal and Verilog-2005, minus -Wall) and loaded with dlopen. It
-  is stored only if its files are unchanged after the build. The generic app
-  links no Verilator runtime; the module brings it. An ABI string (interface
-  hash, libc++ ABI version) guards the boundary. The launchers share
-  src/qt/Launcher.cpp.
+  (plus -Wno-fatal, minus -Wall; .v as Verilog-2005 and .sv as SystemVerilog,
+  as Vivado reads them) and loaded with dlopen. It is stored only if its files
+  are unchanged after the build. The generic app links no Verilator runtime;
+  the module brings it. An ABI string (interface hash, libc++ ABI version)
+  guards the boundary. The launchers share src/qt/Launcher.cpp.
 - M7 inspection stays behind BoardModel (read-only pass-throughs). The inspector
   lists ports and user watches; internal signals are not enumerated, because
   SimEngine enumerates only ports. The Qt log view owns the structured log while

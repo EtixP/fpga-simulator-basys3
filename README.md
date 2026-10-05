@@ -10,7 +10,7 @@ Built with **C++20 and Verilator** for macOS, with a **Qt 6 / Qt Quick** fronten
 | Simulator | Working XDC pin bindings, switches, LEDs, buttons, seven-segment display, UART, VGA, VCD traces and regression tests. Counter, stopwatch, UART echo and VGA pattern examples are included. |
 | Qt frontend — M0–M8 complete | Counter, stopwatch, UART echo and VGA pattern launchers, resizable workspace, board controls, Run/Pause/Step/Reset, exact virtual time and measured speed. Turbo and best-effort real-time pacing. UART terminal with cycle-stamped TX/RX rows, send, hex view, clear and bounded scrollback. Pixel-exact VGA monitor showing each completed frame with its cycle and the monitor's signal diagnosis. Signal inspector with pin bindings, change highlighting and RTL watches; filterable, cycle-stamped event log. Scripted runs (`--frames`, `--at`, `--switches`, `--send`, `--log`, `--screenshot`, `--xdc`). |
 | Migration — complete | The earlier Dear ImGui/SDL2 frontend was removed in M8 after its scripted runs were matched byte for byte. |
-| Your own designs — M9 | `virtualbasys run top.v`: any Verilog design, verilated and compiled at run time and cached, with Verilator's messages shown verbatim. Next: opening designs from the window (M10). |
+| Your own designs — M9 | `virtualbasys run top.v`: any Verilog or SystemVerilog design, verilated and compiled at run time and cached, with Verilator's messages shown verbatim. Next: opening designs from the window (M10). |
 
 **Run your own Verilog** with `virtualbasys run`, or the four built-in examples
 with their own launchers, interactively or as reproducible scripted runs.
