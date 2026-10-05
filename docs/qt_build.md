@@ -6,7 +6,8 @@ output panel. M4 runs the built-in counter and stopwatch with Run/Pause, Step,
 physical reset and measured speed; M5 adds the UART echo launcher and terminal,
 M6 the VGA pattern launcher and monitor, and M7 the signal inspector and event
 log. M8 added scripted runs and removed the earlier Dear ImGui/SDL2 frontend;
-Qt is the only frontend.
+Qt is the only frontend. M9 added `build/qt/bin/virtualbasys`, which runs any
+design ([design_loading.md](design_loading.md)).
 
 ## Dependencies and build
 

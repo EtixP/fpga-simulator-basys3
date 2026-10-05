@@ -47,6 +47,28 @@ target_compile_options(vb_board PRIVATE -O2)
 add_library(vb_script STATIC script/Stimulus.cpp script/RunArgs.cpp script/ScriptRunner.cpp)
 target_link_libraries(vb_script PUBLIC vb_board)
 
+# Design loading: builds a user design into a loadable module at run time
+# (src/design/module) and loads it through the SimEngine interface. Qt-free.
+# It never links vb_engine: each module carries the one Verilator runtime of
+# its process. Needs Verilator, CMake and the compiler at run time.
+add_library(vb_design STATIC
+  design/DesignBuilder.cpp
+  design/DesignModule.cpp
+  design/Process.cpp
+  design/VerilatorJson.cpp
+)
+target_include_directories(vb_design PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+set(VB_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
+include("${CMAKE_SOURCE_DIR}/src/design/ModuleAbi.cmake")
+target_compile_definitions(vb_design
+  PUBLIC VB_ENGINE_INTERFACE_HASH="${VB_ENGINE_INTERFACE_HASH}"
+  PRIVATE VB_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+          VB_TOOL_VERILATOR="${VERILATOR_ROOT}/bin/verilator"
+          VB_TOOL_VERILATOR_DIR="${verilator_DIR}"
+          VB_TOOL_CMAKE="${CMAKE_COMMAND}"
+          VB_TOOL_CXX="${CMAKE_CXX_COMPILER}")
+target_link_libraries(vb_design PUBLIC ${CMAKE_DL_LIBS})
+
 # Keep Qt discovery and autogen settings local to this optional frontend.
 if(VB_BUILD_QT_GUI)
   add_subdirectory(qt)

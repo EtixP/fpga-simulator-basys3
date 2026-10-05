@@ -23,7 +23,7 @@ runs.
 | `--at CYCLE:NAME=V` | Set SW0..SW15 or BTNC/BTNU/BTNL/BTNR/BTND to 0 or 1 at a cycle. Repeatable. |
 | `--switches BITS` | Turn switches on at cycle 0; the rightmost digit is SW0. |
 | `--send CYCLE:TEXT` | Queue TEXT's bytes to the design's UART receive line at a cycle. Repeatable. |
-| `--log FILE` | Record the structured log from cycle 0 and write it when the app exits, including by Ctrl-C or SIGTERM. |
+| `--log FILE` | Record the structured log from cycle 0 and write it when the app exits, including by Ctrl-C, SIGTERM or SIGHUP. |
 | `--screenshot FILE` | Save the window when `--frames` ends the run, as displayed (a tooltip under the pointer included). The file suffix picks the format; a name without a suffix Qt can write gets BMP, with a warning if it has another suffix. `--frames 0` saves nothing. |
 
 Any option except `--xdc` makes the run scripted. Launches without them are

@@ -32,6 +32,10 @@ PASS reviews on 2026-09-18. Qt migration must preserve this contract.
 - VCD uses 1 ns precision; cycle index N dumps low at 10*N and high at 10*N+5.
   Trace enable is lazy; disable flushes/pauses; resume appends without truncation.
   No peek/poke-only dump. Trace filename is fixed once successfully opened.
+- Designs loaded at run time (docs/design_loading.md) are verilated with the
+  examples' flags, without -Wall, with -Wno-fatal and as Verilog-2005, and run
+  the same VerilatorEngine source; the module holds the process's one
+  Verilator runtime.
 - Each engine owns its context/model/tracer; multiple engines may interleave and
   be destroyed in any order. Engine operations are single-threaded; cross-thread
   use requires an explicit future ownership design, not concurrent access.

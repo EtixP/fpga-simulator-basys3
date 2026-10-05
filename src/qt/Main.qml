@@ -12,6 +12,8 @@ ApplicationWindow {
     property SimulationController controller: null
     // Example file stem (for example "uart_echo"); defaults to the design name.
     property string designSource: ""
+    // The loaded design's files for the Project pane; empty for built-in examples.
+    property var designFiles: []
     readonly property string designFileStem: designSource.length > 0 ? designSource
         : controller !== null ? controller.designName.toLowerCase() : ""
     property int workspaceIndex: 0
@@ -223,10 +225,11 @@ ApplicationWindow {
                     Label {
                         objectName: "projectDesignFiles"
                         Layout.fillWidth: true
-                        text: window.liveSimulation
-                            ? "examples/" + window.designFileStem + ".v\nexamples/"
+                        text: !window.liveSimulation
+                            ? qsTr("Run virtualbasys run DESIGN.v to load a design.")
+                            : window.designFiles.length > 0 ? window.designFiles.join("\n")
+                            : "examples/" + window.designFileStem + ".v\nexamples/"
                                 + window.designFileStem + ".xdc"
-                            : qsTr("Design files will appear here when project loading is available.")
                         color: window.palette.placeholderText
                         wrapMode: Text.WordWrap
                         lineHeight: 1.25

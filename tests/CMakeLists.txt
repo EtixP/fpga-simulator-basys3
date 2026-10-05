@@ -151,3 +151,13 @@ add_test(NAME vga_contract COMMAND test_vga_contract)
 add_executable(test_script_runner test_script_runner.cpp)
 target_link_libraries(test_script_runner PRIVATE vb_script vb_engine)
 add_test(NAME script_runner COMMAND test_script_runner)
+
+# --- design loading: modules built from Verilog at test time --------------
+# No design library is linked: every engine comes from a loaded module.
+add_library(fake_design_module MODULE data/fake_design_module.cpp)
+add_executable(test_design_loader test_design_loader.cpp)
+target_link_libraries(test_design_loader PRIVATE vb_design)
+add_dependencies(test_design_loader fake_design_module)
+add_test(NAME design_loader COMMAND test_design_loader "${CMAKE_SOURCE_DIR}"
+  $<TARGET_FILE:fake_design_module>)
+set_tests_properties(design_loader PROPERTIES TIMEOUT 600)

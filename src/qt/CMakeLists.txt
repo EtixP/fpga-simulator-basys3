@@ -20,16 +20,14 @@ target_include_directories(vb_qt_adapter PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/.."
 target_link_libraries(vb_qt_adapter PUBLIC Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick vb_script
                       PRIVATE vb_board)
 
-# One Verilator runtime per launcher. Share the launcher and QML sources while
-# keeping generated QML output directories distinct between executable targets.
-# STARTUP_RESET applies the Reset control's pulse once before the window opens.
-# CYCLES_PER_FRAME is a scripted run's frame length (--frames); default 100000.
-function(vb_add_qt_example target design title)
-  cmake_parse_arguments(PARSE_ARGV 3 VB_EXAMPLE "STARTUP_RESET" "CYCLES_PER_FRAME" "")
-  if(NOT VB_EXAMPLE_CYCLES_PER_FRAME)
-    set(VB_EXAMPLE_CYCLES_PER_FRAME 100000)
-  endif()
-  qt_add_executable(${target} main.cpp)
+# The launcher body shared by every launcher executable (Launcher.cpp).
+add_library(vb_qt_launcher STATIC Launcher.h Launcher.cpp)
+target_link_libraries(vb_qt_launcher PUBLIC
+  vb_qt_adapter vb_board vb_script Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::QuickControls2)
+
+# Each launcher executable gets its own copy of the shell QML module, in
+# distinct generated directories.
+function(vb_add_qt_shell target)
   qt_add_qml_module(${target}
     URI VirtualBasys
     VERSION 1.0
@@ -40,6 +38,19 @@ function(vb_add_qt_example target design title)
               SimulationToolbar.qml UartTerminal.qml VgaMonitor.qml
               InspectorPanel.qml EventLogView.qml
   )
+  target_link_libraries(${target} PRIVATE vb_qt_launcher vb_qt_adapterplugin)
+endfunction()
+
+# One Verilator runtime per launcher: each example launcher links one design.
+# STARTUP_RESET applies the Reset control's pulse once before the window opens.
+# CYCLES_PER_FRAME is a scripted run's frame length (--frames); default 100000.
+function(vb_add_qt_example target design title)
+  cmake_parse_arguments(PARSE_ARGV 3 VB_EXAMPLE "STARTUP_RESET" "CYCLES_PER_FRAME" "")
+  if(NOT VB_EXAMPLE_CYCLES_PER_FRAME)
+    set(VB_EXAMPLE_CYCLES_PER_FRAME 100000)
+  endif()
+  qt_add_executable(${target} main.cpp)
+  vb_add_qt_shell(${target})
   qt_add_resources(${target} "${target}_constraints"
     PREFIX "/examples"
     BASE "${CMAKE_SOURCE_DIR}/examples"
@@ -50,10 +61,7 @@ function(vb_add_qt_example target design title)
     VB_DESIGN="${design}" VB_DESIGN_TITLE="${title}"
     VB_STARTUP_RESET=$<BOOL:${VB_EXAMPLE_STARTUP_RESET}>
     VB_CYCLES_PER_FRAME=${VB_EXAMPLE_CYCLES_PER_FRAME})
-  target_link_libraries(${target} PRIVATE
-    Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::QuickControls2
-    vb_qt_adapter vb_qt_adapterplugin vb_board vb_engine sim_${design}
-  )
+  target_link_libraries(${target} PRIVATE vb_engine sim_${design})
 endfunction()
 
 vb_add_qt_example(virtualbasys_qt counter Counter)
@@ -62,6 +70,20 @@ vb_add_qt_example(virtualbasys_qt_uart uart_echo "UART Echo" STARTUP_RESET)
 # About one VGA frame (1,680,000 cycles) per scripted frame.
 vb_add_qt_example(virtualbasys_qt_vga vga_pattern "VGA Pattern" STARTUP_RESET
                   CYCLES_PER_FRAME 1700000)
+
+# virtualbasys run: any design, built into a module at run time. No design and
+# no Verilator runtime are linked here; the loaded module brings both.
+qt_add_executable(virtualbasys main_run.cpp)
+vb_add_qt_shell(virtualbasys)
+qt_add_resources(virtualbasys "virtualbasys_constraints"
+  PREFIX "/constraints"
+  BASE "${CMAKE_SOURCE_DIR}/src/constraints/data"
+  FILES "${CMAKE_SOURCE_DIR}/src/constraints/data/Basys3_Master.xdc"
+)
+target_link_libraries(virtualbasys PRIVATE vb_design)
+# macOS file systems ignore case: next to the generated VirtualBasys/ QML
+# directory, an executable named virtualbasys cannot exist. It lives in bin/.
+set_target_properties(virtualbasys PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
 # QCoreApplication/QQmlEngine tests need no window, platform plugin or renderer.
 qt_add_executable(test_qt_board_adapter "${CMAKE_SOURCE_DIR}/tests/test_qt_board_adapter.cpp")
@@ -306,3 +328,31 @@ foreach(design counter uart_echo)
     "${CMAKE_SOURCE_DIR}/examples/${design}.xdc")
   set_tests_properties(qt_script_run_${design} PROPERTIES TIMEOUT 300)
 endforeach()
+
+# The shared launcher body in process, with a recording engine.
+qt_add_executable(test_qt_launcher "${CMAKE_SOURCE_DIR}/tests/test_qt_launcher.cpp")
+target_include_directories(test_qt_launcher PRIVATE "${CMAKE_SOURCE_DIR}/tests")
+vb_add_qt_shell(test_qt_launcher)
+qt_add_resources(test_qt_launcher "test_qt_launcher_constraints"
+  PREFIX "/constraints"
+  BASE "${CMAKE_SOURCE_DIR}/src/constraints/data"
+  FILES "${CMAKE_SOURCE_DIR}/src/constraints/data/Basys3_Master.xdc"
+)
+target_link_libraries(test_qt_launcher PRIVATE vb_engine)  # SimEngine only, for the test engine
+add_test(NAME qt_launcher COMMAND test_qt_launcher)
+set_tests_properties(qt_launcher PROPERTIES
+  ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
+  TIMEOUT 120
+)
+
+# virtualbasys run, as separate processes, against the prebuilt launchers.
+qt_add_executable(test_qt_design_run "${CMAKE_SOURCE_DIR}/tests/test_qt_design_run.cpp")
+target_include_directories(test_qt_design_run PRIVATE "${CMAKE_SOURCE_DIR}/tests")
+target_link_libraries(test_qt_design_run PRIVATE Qt6::Core Qt6::Gui)
+add_dependencies(test_qt_design_run virtualbasys virtualbasys_qt virtualbasys_qt_stopwatch
+                 virtualbasys_qt_uart virtualbasys_qt_vga fake_design_module)
+add_test(NAME qt_design_run COMMAND test_qt_design_run
+  $<TARGET_FILE:virtualbasys> $<TARGET_FILE:virtualbasys_qt> $<TARGET_FILE:virtualbasys_qt_stopwatch>
+  $<TARGET_FILE:virtualbasys_qt_uart> $<TARGET_FILE:virtualbasys_qt_vga> "${CMAKE_SOURCE_DIR}"
+  $<TARGET_FILE:fake_design_module>)
+set_tests_properties(qt_design_run PROPERTIES TIMEOUT 1200)

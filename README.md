@@ -9,19 +9,27 @@ Built with **C++20 and Verilator** for macOS, with a **Qt 6 / Qt Quick** fronten
 | --- | --- |
 | Simulator | Working XDC pin bindings, switches, LEDs, buttons, seven-segment display, UART, VGA, VCD traces and regression tests. Counter, stopwatch, UART echo and VGA pattern examples are included. |
 | Qt frontend — M0–M8 complete | Counter, stopwatch, UART echo and VGA pattern launchers, resizable workspace, board controls, Run/Pause/Step/Reset, exact virtual time and measured speed. Turbo and best-effort real-time pacing. UART terminal with cycle-stamped TX/RX rows, send, hex view, clear and bounded scrollback. Pixel-exact VGA monitor showing each completed frame with its cycle and the monitor's signal diagnosis. Signal inspector with pin bindings, change highlighting and RTL watches; filterable, cycle-stamped event log. Scripted runs (`--frames`, `--at`, `--switches`, `--send`, `--log`, `--screenshot`, `--xdc`). |
-| Migration — complete | The earlier Dear ImGui/SDL2 frontend was removed in M8 after its scripted runs were matched byte for byte. Next: loading arbitrary designs. |
+| Migration — complete | The earlier Dear ImGui/SDL2 frontend was removed in M8 after its scripted runs were matched byte for byte. |
+| Your own designs — M9 | `virtualbasys run top.v`: any Verilog design, verilated and compiled at run time and cached, with Verilator's messages shown verbatim. Next: opening designs from the window (M10). |
 
-**Qt runs all four built-in examples**, each in its own launcher, interactively
-or as reproducible scripted runs. Loading arbitrary designs is still pending.
+**Run your own Verilog** with `virtualbasys run`, or the four built-in examples
+with their own launchers, interactively or as reproducible scripted runs.
 
-M8 verification: **44/44 full-suite checks**, **18/18 headless checks** and
-**26/26 Qt sanitizer checks** without the legacy frontend. Before its removal,
-the Qt launchers wrote byte-identical logs to the ImGui demos for the same scripts.
-[Scripted runs](docs/qt_scripted_runs.md) · [Inspector and log](docs/qt_inspector_log.md) · [VGA monitor](docs/qt_vga.md) ·
+M9 verification: **47/47 full-suite checks**, **19/19 headless checks** and
+**47/47 sanitizer checks**. Examples loaded through `virtualbasys run` write
+byte-identical logs to their prebuilt launchers for the same scripts.
+[Your own designs](docs/design_loading.md) · [Scripted runs](docs/qt_scripted_runs.md) · [Inspector and log](docs/qt_inspector_log.md) · [VGA monitor](docs/qt_vga.md) ·
 [UART terminal](docs/qt_uart.md) · [Simulation controls](docs/qt_control.md) ·
 [Roadmap](docs/migration_plan.md)
 
 ## Screenshots
+
+![A design run with virtualbasys run: the Project pane lists its own files, after a scripted three-frame run](docs/screenshots/qt-run-counter-m9.png)
+
+`virtualbasys run examples/counter.v --xdc examples/counter.xdc --frames 3
+--switches 0101 --screenshot out.png`: the design compiled at run time and
+loaded, with its own files in the Project pane. Captured natively by that
+command.
 
 | Scripted counter run at its last cycle | Scripted UART sends and their echoes |
 | --- | --- |
@@ -81,6 +89,15 @@ designs need it (they open at cycle 16). Type in the UART tab, press Return,
 then Run or Step. The VGA monitor shows its first frame after about 3.25 million
 cycles.
 Use `--preview` for the unloaded board or `--realtime` for best-effort 1× pacing.
+
+Run your own design; the first run compiles it (about 10 s), later runs start
+at once. Without `--xdc`, its ports use the Basys 3 master constraints' names
+(`clk`, `sw`, `led`, `btnC`, ...). See [your own designs](docs/design_loading.md):
+
+```sh
+./build/qt/bin/virtualbasys run examples/counter.v --xdc examples/counter.xdc
+./build/qt/bin/virtualbasys run top.v more.v -I include --top top
+```
 
 Scripted runs apply inputs at exact cycles, run by themselves and can write a
 log and a screenshot; see [scripted runs](docs/qt_scripted_runs.md):
