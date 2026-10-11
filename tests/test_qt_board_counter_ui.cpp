@@ -129,6 +129,12 @@ private slots:
             QCOMPARE(display->property("segments").toInt(), 0);
             QVERIFY(!display->property("decimalPoint").toBool());
         }
+        // The counter leaves the display unbound: it is veiled like the other
+        // unbound parts, with its digits still in place underneath.
+        auto* veil = ui_->item("displayVeil");
+        QVERIFY(veil && veil->isVisible() && veil->opacity() > 0);
+        QVERIFY(ui_->bounds(veil).contains(ui_->bounds(ui_->item("digit0")).center()));
+        QVERIFY(ui_->bounds(veil).contains(ui_->bounds(ui_->item("digit3")).center()));
     }
 
     void destroyingPresentationReleasesHeldResetWithoutStepping() {

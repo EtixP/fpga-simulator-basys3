@@ -33,8 +33,8 @@ Button {
             releaseInput()
     }
 
-    implicitWidth: 54
-    implicitHeight: 54
+    implicitWidth: 55
+    implicitHeight: 55
     enabled: available
     checkable: false
     autoRepeat: false
@@ -95,27 +95,57 @@ Button {
     ToolTip.text: !available ? qsTr("%1 is not connected").arg(resource)
         : qsTr("Hold %1 to press").arg(resource)
 
-    background: Rectangle {
-        radius: 9
-        color: !control.available ? "#1a252e"
-            : control.active ? "#286861" : control.hovered ? "#304653" : "#243641"
-        border.width: control.visualFocus ? 2 : 1
-        border.color: control.visualFocus ? "#8ce4d7"
-            : control.active ? "#64ccbc" : "#48616e"
+    // A push button on the rendered board: while held, its sprite (a render of
+    // the plunger pressed in) covers the board image, and a ring shows the press,
+    // which a real button barely does from above. Unbound buttons are veiled.
+    property var spriteRect: [0, 0, width, height]
+    property url spriteSource
+    background: Item {
+        Image {
+            objectName: "sprite"
+            x: control.spriteRect[0]
+            y: control.spriteRect[1]
+            width: control.spriteRect[2]
+            height: control.spriteRect[3]
+            source: control.spriteSource
+            visible: control.active
+            smooth: true
+            mipmap: true
+        }
+        Rectangle {
+            anchors.centerIn: parent
+            width: parent.width * 0.52
+            height: width
+            radius: width / 2
+            color: "transparent"
+            border.width: 3
+            border.color: "#7fe0d0"
+            opacity: control.active ? 0.9 : 0
+        }
         Rectangle {
             anchors.fill: parent
-            anchors.margins: 5
-            radius: 5
+            radius: 4
+            color: "#0a1a33"
+            opacity: control.available ? 0 : 0.6
+        }
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: -3
+            radius: 6
             color: "transparent"
-            border.color: control.available && control.active ? "#5cb8a9" : "#3a4d59"
+            border.width: 3
+            border.color: "#9fe8dc"
+            opacity: control.hovered && control.available && !control.visualFocus ? 0.75 : 0
+        }
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: -6
+            radius: 8
+            color: "transparent"
+            border.width: 4
+            border.color: "#7fe0d0"
+            visible: control.visualFocus
         }
     }
-    contentItem: Label {
-        text: control.resource
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-        color: control.available ? "#e0ecef" : "#718492"
-        font.pixelSize: 10
-        font.weight: Font.DemiBold
-    }
+    contentItem: Item {}
 }

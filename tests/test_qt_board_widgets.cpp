@@ -4,7 +4,10 @@
 #include "constraints/Xdc.h"
 #include "qt/BoardAdapter.h"
 
+#include <QFile>
 #include <QGuiApplication>
+#include <QImageReader>
+#include <QJSEngine>
 #include <QJSValue>
 #include <QKeyEvent>
 #include <QQmlApplicationEngine>
@@ -21,6 +24,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <vector>
 
 Q_IMPORT_QML_PLUGIN(VirtualBasys_BoardPlugin)
@@ -160,6 +164,21 @@ private:
         return findItem(digit, QStringLiteral("segment%1").arg(bit));
     }
     static bool lit(QQuickItem* piece) { return piece->property("lit").toBool(); }
+    // BoardLayout.js as QML sees it: its vars become the engine's globals.
+    static QJSValue boardLayout(QJSEngine& js) {
+        QFile file(QStringLiteral(VB_QT_QML_DIR "/BoardLayout.js"));
+        if (!file.open(QIODevice::ReadOnly)) return QJSValue();
+        QString code = QString::fromUtf8(file.readAll());
+        code.remove(QStringLiteral(".pragma library"));
+        return js.evaluate(code).isError() ? QJSValue() : js.globalObject();
+    }
+    static QRectF layoutRect(const QJSValue& r) {
+        return QRectF(r.property(0).toNumber(), r.property(1).toNumber(),
+                      r.property(2).toNumber(), r.property(3).toNumber());
+    }
+    static QRectF geometry(QQuickItem* target) {
+        return QRectF(target->x(), target->y(), target->width(), target->height());
+    }
     bool held(int index) const { return board_->buttonState(vb::Button(index)); }
     void repeatKey(QEvent::Type type) {
         QKeyEvent repeat(type, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" "), true, 1);
@@ -518,6 +537,174 @@ private slots:
         QVERIFY(!digit->property("decimalPoint").toBool());
         for (int bit = 0; bit < 7; ++bit) QVERIFY(!lit(segment(digit, bit)));
         QVERIFY(!lit(findItem(digit, QStringLiteral("decimalPoint"))));
+    }
+
+    // tools/board_render.py writes BoardLayout.js, board.png and the sprites in one
+    // run: every part has its sprite, at the size its rectangle gives (the render
+    // has 16 px per mm, the layout 10 units per mm), inside the board image. A
+    // switch, LED, button or DONE sprite's feathered edge is the board itself, so
+    // it must match board.png where the layout places it: a moved rectangle, a
+    // flipped offset or a swapped sprite does not (measured 0.7/255 placed right,
+    // 11.6 or more for those faults).
+    void renderedBoardMatchesItsLayout() {
+        QJSEngine js;
+        const QJSValue layout = boardLayout(js);
+        QVERIFY(layout.isObject());
+        constexpr double unitsPerPixel = 10.0 / 16.0;
+        const auto size = [](const QString& path) {
+            return QImageReader(QStringLiteral(VB_QT_QML_DIR "/board/") + path).size();
+        };
+        const QSize board = size(QStringLiteral("board.png"));
+        const QImage boardImage = QImage(QStringLiteral(VB_QT_QML_DIR "/board/board.png"))
+                                      .convertToFormat(QImage::Format_ARGB32);
+        QVERIFY(!boardImage.isNull());
+        const auto edgeError = [&](const QString& name, const QPointF& at) {
+            const QImage spr = QImage(QStringLiteral(VB_QT_QML_DIR "/board/sprites/") + name)
+                                   .convertToFormat(QImage::Format_ARGB32);
+            const QPoint origin = (at / unitsPerPixel).toPoint();
+            double total = 0;
+            int count = 0;
+            for (int y = 0; y < spr.height(); ++y)
+                for (int x = 0; x < spr.width(); ++x) {
+                    const QRgb s = spr.pixel(x, y);
+                    if (qAlpha(s) == 0 || qAlpha(s) == 255) continue;
+                    const QRgb b = boardImage.pixel(origin.x() + x, origin.y() + y);
+                    total += (qAbs(qRed(s) - qRed(b)) + qAbs(qGreen(s) - qGreen(b))
+                              + qAbs(qBlue(s) - qBlue(b))) / 3.0;
+                    ++count;
+                }
+            return count ? total / count : 255.0;
+        };
+        const double width = layout.property("width").toNumber();
+        const double height = layout.property("height").toNumber();
+        QCOMPARE(qRound(board.width() * unitsPerPixel), qRound(width));
+        QCOMPARE(qRound(board.height() * unitsPerPixel), qRound(height));
+        const auto rect = layoutRect;
+        const auto sprite = [&](const QString& name, const QRectF& placed, const QPointF& origin,
+                                bool edgeIsBoard = false) {
+            const QSize pixels = size(QStringLiteral("sprites/") + name);
+            QVERIFY2(pixels.isValid(), qPrintable(name));
+            QVERIFY2(qAbs(pixels.width() * unitsPerPixel - placed.width()) < 0.01
+                     && qAbs(pixels.height() * unitsPerPixel - placed.height()) < 0.01, qPrintable(name));
+            const QRectF onBoard = placed.translated(origin);
+            QVERIFY2(QRectF(0, 0, width, height).contains(onBoard), qPrintable(name));
+            if (edgeIsBoard) {
+                const double error = edgeError(name, onBoard.topLeft());
+                QVERIFY2(error < 4.0, qPrintable(QStringLiteral("%1 edge differs from the board by %2/255")
+                                                     .arg(name).arg(error, 0, 'f', 1)));
+            }
+        };
+        const std::array<std::tuple<const char*, const char*, int>, 3> parts{
+            {{"switches", "switch", 16}, {"leds", "led", 16}, {"buttons", "button", 5}}};
+        for (const auto& [group, prefix, count] : parts) {
+            const QJSValue list = layout.property(QString::fromLatin1(group));
+            QCOMPARE(list.property(QStringLiteral("length")).toInt(), count);
+            for (int i = 0; i < count; ++i) {
+                const QRectF part = rect(list.property(i).property(QStringLiteral("rect")));
+                QVERIFY(part.width() > 0 && part.height() > 0);
+                sprite(QStringLiteral("%1-%2.png").arg(QLatin1String(prefix)).arg(i),
+                       rect(list.property(i).property(QStringLiteral("sprite"))), part.topLeft(), true);
+            }
+        }
+        sprite(QStringLiteral("done.png"), rect(layout.property(QStringLiteral("done"))
+                                                    .property(QStringLiteral("sprite"))), QPointF(), true);
+        const QRectF display = rect(layout.property(QStringLiteral("display")).property(QStringLiteral("rect")));
+        QVERIFY(!display.isEmpty() && QRectF(0, 0, width, height).contains(display));
+        const QJSValue digits = layout.property(QStringLiteral("digits"));
+        QCOMPARE(digits.property(QStringLiteral("length")).toInt(), 4);
+        const QStringList segments{"a", "b", "c", "d", "e", "f", "g", "dp"};
+        for (int d = 0; d < 4; ++d) {
+            const QRectF cell = rect(digits.property(d).property(QStringLiteral("rect")));
+            const QJSValue list = digits.property(d).property(QStringLiteral("segments"));
+            QCOMPARE(list.property(QStringLiteral("length")).toInt(), 8);
+            for (int s = 0; s < 8; ++s)
+                sprite(QStringLiteral("segment-%1-%2.png").arg(d).arg(segments[s]),
+                       rect(list.property(s).property(QStringLiteral("rect"))), cell.topLeft());
+        }
+    }
+
+    // Each part shows its own sprite, where the layout puts it, exactly while the
+    // model has the part in that state. The DONE LED is lit while connected, and
+    // the bound display is not veiled.
+    void spritesFollowPartState() {
+        QJSEngine js;
+        const QJSValue layout = boardLayout(js);
+        QVERIFY(layout.isObject());
+        const auto placed = [&](QQuickItem* part, const char* group, int row, const QString& file) {
+            const QJSValue entry = layout.property(QString::fromLatin1(group)).property(row);
+            auto* sprite = findItem(part, QStringLiteral("sprite"));
+            return sprite && geometry(part) == layoutRect(entry.property(QStringLiteral("rect")))
+                && geometry(sprite) == layoutRect(entry.property(QStringLiteral("sprite")))
+                && sprite->property("source").toUrl().fileName() == file ? sprite : nullptr;
+        };
+        for (int row = 0; row < 16; ++row) {
+            auto* sw = placed(control("sw", row), "switches", row, QStringLiteral("switch-%1.png").arg(row));
+            QVERIFY2(sw, qPrintable(QStringLiteral("switch %1 sprite").arg(row)));
+            QVERIFY(!sw->isVisible());
+            QVERIFY(adapter_->setSwitch(row, true));
+            QTRY_VERIFY(sw->isVisible());
+            QVERIFY(adapter_->setSwitch(row, false));
+            QTRY_VERIFY(!sw->isVisible());
+
+            auto* led = placed(control("led", row), "leds", row, QStringLiteral("led-%1.png").arg(row));
+            QVERIFY2(led, qPrintable(QStringLiteral("LED %1 sprite").arg(row)));
+            pins_->values[PinEngine::Leds] = uint64_t{1} << (15 - row);
+            QVERIFY(adapter_->refresh());
+            for (int other = 0; other < 16; ++other)
+                QCOMPARE(findItem(control("led", other), QStringLiteral("sprite"))->isVisible(), other == row);
+        }
+        pins_->values[PinEngine::Leds] = 0;
+        QVERIFY(adapter_->refresh());
+        for (int row = 0; row < 5; ++row) {
+            auto* button = placed(control("button", row), "buttons", row, QStringLiteral("button-%1.png").arg(row));
+            QVERIFY2(button, qPrintable(QStringLiteral("button %1 sprite").arg(row)));
+            QVERIFY(!button->isVisible());
+            QVERIFY(adapter_->setButton(row, true));
+            QTRY_VERIFY(button->isVisible());
+            QVERIFY(adapter_->setButton(row, false));
+            QTRY_VERIFY(!button->isVisible());
+        }
+
+        const QStringList names{"a", "b", "c", "d", "e", "f", "g", "dp"};
+        const auto pieces = [&](int digit) {
+            auto* cell = control("digit", digit);
+            QList<QQuickItem*> list;
+            for (int bit = 0; bit < 7; ++bit) list.append(segment(cell, bit));
+            list.append(findItem(cell, QStringLiteral("decimalPoint")));
+            return list;
+        };
+        for (int digit = 0; digit < 4; ++digit) {
+            const QJSValue cell = layout.property(QStringLiteral("digits")).property(digit);
+            QCOMPARE(geometry(control("digit", digit)), layoutRect(cell.property(QStringLiteral("rect"))));
+            const auto list = pieces(digit);
+            for (int k = 0; k < 8; ++k) {
+                QCOMPARE(list[k]->property("source").toUrl().fileName(),
+                         QStringLiteral("segment-%1-%2.png").arg(digit).arg(names[k]));
+                QCOMPARE(geometry(list[k]), layoutRect(cell.property(QStringLiteral("segments"))
+                                                           .property(k).property(QStringLiteral("rect"))));
+                QCOMPARE(list[k]->opacity(), 0.0);
+            }
+        }
+        pins_->values[PinEngine::Anodes] = 0;
+        for (int selected = 0; selected < 8; ++selected) {  // one piece at a time
+            pins_->values[PinEngine::Segments] = selected < 7 ? (~(uint64_t{1} << selected)) & 127 : 127;
+            pins_->values[PinEngine::Point] = selected == 7 ? 0 : 1;
+            board_->tick(1000);
+            QVERIFY(adapter_->refresh());
+            for (int digit = 0; digit < 4; ++digit) {
+                const auto list = pieces(digit);
+                for (int k = 0; k < 8; ++k) QCOMPARE(list[k]->opacity(), k == selected ? 1.0 : 0.0);
+            }
+        }
+        pins_->values[PinEngine::Segments] = 0; // every segment lit (active low)
+        pins_->values[PinEngine::Point] = 0;
+        board_->tick(1000);
+        QVERIFY(adapter_->refresh());
+        for (int digit = 0; digit < 4; ++digit)
+            for (auto* piece : pieces(digit)) QCOMPARE(piece->opacity(), 1.0);
+
+        QVERIFY(item(QStringLiteral("doneLed"))->isVisible());
+        QVERIFY(!item(QStringLiteral("displayVeil"))->isVisible());
     }
 
     void keyboardFocusRevealsControlsInANarrowViewport() {

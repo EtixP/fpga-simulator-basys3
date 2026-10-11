@@ -14,6 +14,7 @@
 #include <QImage>
 #include <QImageWriter>
 #include <QQmlApplicationEngine>
+#include <QQmlError>
 #include <QQuickWindow>
 #include <QQuickStyle>
 #include <QSocketNotifier>
@@ -368,6 +369,8 @@ int runLauncher(QGuiApplication& app, const QStringList& commandLine, const Laun
     controller.setRealtime(parsed->realtime);
     QQmlEngine::setObjectOwnership(&boardAdapter, QQmlEngine::CppOwnership);
     QQmlEngine::setObjectOwnership(&controller, QQmlEngine::CppOwnership);
+    // Declared before the engine, which may still warn while it is destroyed.
+    QStringList qmlWarnings;
     QQmlApplicationEngine engine;
     engine.setInitialProperties({{QStringLiteral("board"),
                                  QVariant::fromValue(&boardAdapter)},
@@ -375,6 +378,13 @@ int runLauncher(QGuiApplication& app, const QStringList& commandLine, const Laun
                                  QVariant::fromValue(&controller)},
                                 {QStringLiteral("designSource"), design.source},
                                 {QStringLiteral("designFiles"), design.files}});
+    // The smoke test fails on any QML warning, such as a board image that
+    // could not be opened from the module's resources.
+    if (smokeTest)
+        QObject::connect(&engine, &QQmlEngine::warnings, &app,
+                         [&qmlWarnings](const QList<QQmlError>& errors) {
+                             for (const auto& error : errors) qmlWarnings.append(error.toString());
+                         });
     engine.loadFromModule("VirtualBasys", "Main");
     if (engine.rootObjects().isEmpty()) {
         qCritical() << "Failed to load the VirtualBasys QML module.";
@@ -404,6 +414,11 @@ int runLauncher(QGuiApplication& app, const QStringList& commandLine, const Laun
         QObject::connect(window, &QQuickWindow::frameSwapped, &deadline, [&] {
             renderedFrame = true;
             deadline.stop();
+            if (!qmlWarnings.isEmpty()) {
+                qCritical() << "Qt Quick smoke test failed on QML warnings:" << qmlWarnings;
+                app.exit(EXIT_FAILURE);
+                return;
+            }
             std::puts("Qt Quick smoke test: PASS");
             app.exit(EXIT_SUCCESS);
         }, Qt::QueuedConnection);

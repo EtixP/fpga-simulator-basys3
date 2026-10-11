@@ -5,11 +5,12 @@ without the board, Vivado or a VM.**
 
 VirtualBasys compiles a design with Verilator and connects it to a Qt Quick
 model of the Digilent Basys 3: 16 switches, 16 LEDs, 5 buttons, the four-digit
-seven-segment display, the USB-UART and the VGA port. It reads the same `.xdc`
+seven-segment display, the USB-UART and the VGA port. The board on screen is a
+ray-traced render of a 3D model built to the real board's dimensions. It reads the same `.xdc`
 constraints you give Vivado, keeps exact virtual time (one cycle is 10 ns of the
 100 MHz clock), and always shows how fast the simulation is really running.
 
-![A design run with virtualbasys run: the board after a scripted three-frame run, with the design's own files in the Project pane](docs/screenshots/qt-run-counter-m9.png)
+![The counter running on the rendered Basys 3 after a scripted three-frame run: LEDs lit, two switches on, the design's own files in the Project pane](docs/screenshots/qt-run-counter.png)
 
 The counter example, compiled at run time and loaded with its own files in the
 Project pane. The app captured this itself with `virtualbasys run
@@ -27,9 +28,10 @@ examples/counter.v --xdc examples/counter.xdc --frames 3 --switches 0101
   in Vivado. Without one, the Basys 3 master constraints apply (`clk`, `sw`,
   `led`, `btnC`, `seg`, `an`, `RsRx`, `vgaRed`, ...).
 - **Use the board.** Click switches, hold buttons and type into the UART
-  terminal. The seven-segment display multiplexes as on the real board, and
-  the VGA monitor draws every frame pixel-exactly and reports broken sync
-  timing.
+  terminal. Switch levers slide, LEDs and segments glow, and the DONE LED
+  lights while a design is loaded. The seven-segment display multiplexes as on
+  the real board, and the VGA monitor draws every frame pixel-exactly and
+  reports broken sync timing.
 - **Look inside.** The inspector shows every port, its pin binding and any RTL
   signal you watch. A cycle-stamped event log records LED, display, UART,
   switch and button events.
@@ -112,22 +114,22 @@ Qt Quick window: board, controls, inspector, event log, UART terminal, VGA monit
 
 | Inspector with an RTL watch | Event log filtered to one LED |
 | --- | --- |
-| ![Inspector listing ports, pin bindings and a counter.count watch at cycle 30](docs/screenshots/qt-inspector-m7.png) | ![Event log recording counter LED events, filtered to LED 3](docs/screenshots/qt-event-log-m7.png) |
+| ![Inspector listing ports, pin bindings and a counter.count watch at cycle 30](docs/screenshots/qt-inspector.png) | ![Event log recording counter LED events, filtered to LED 3](docs/screenshots/qt-event-log.png) |
 
 | VGA pattern in the monitor | Monitor diagnosis after a mid-frame reset |
 | --- | --- |
-| ![VGA monitor showing the pixel-exact colour-bar frame and its completion cycle](docs/screenshots/qt-vga-m6.png) | ![VGA monitor reporting a signal problem in a frame cut short by reset](docs/screenshots/qt-vga-reset-m6.png) |
+| ![VGA monitor showing the pixel-exact colour-bar frame and its completion cycle](docs/screenshots/qt-vga.png) | ![VGA monitor reporting a signal problem in a frame cut short by reset](docs/screenshots/qt-vga-reset.png) |
 
 | UART echo in the terminal | Scripted UART sends and their echoes |
 | --- | --- |
-| ![UART terminal showing a cycle-stamped RX send and its TX echo](docs/screenshots/qt-uart-m5.png) | ![UART terminal after a scripted run: two RX sends stamped with their first start bits, then the echo](docs/screenshots/qt-scripted-uart-m8.png) |
+| ![UART terminal showing a cycle-stamped RX send and its TX echo](docs/screenshots/qt-uart.png) | ![UART terminal after a scripted run: two RX sends stamped with their first start bits, then the echo](docs/screenshots/qt-scripted-uart.png) |
 
-| Scripted counter run at its last cycle | Stopwatch after simulation |
+| Scripted counter run at its last cycle | Stopwatch after a scripted 0.3 s run |
 | --- | --- |
-| ![Counter after a scripted two-frame run: finished, controls disabled, switches preset by the script](docs/screenshots/qt-scripted-counter-m8.png) | ![Stopwatch with simulation controls and virtual time](docs/screenshots/qt-stopwatch-m4.png) |
+| ![Counter after a scripted two-frame run: finished, controls disabled, switches preset by the script](docs/screenshots/qt-scripted-counter.png) | ![Stopwatch showing 00.29 on the rendered display after the README's scripted run](docs/screenshots/qt-stopwatch.png) |
 
 Each screenshot was captured by the app itself, running the examples' real RTL
-in the UI tests and benchmarks.
+in the UI tests and in scripted runs.
 
 ## Status
 
@@ -136,6 +138,7 @@ in the UI tests and benchmarks.
 | Simulator core: engine, XDC binding, board peripherals, VCD traces, golden tests | Done |
 | Qt frontend (M0–M8): board, controls, pacing, UART terminal, VGA monitor, inspector, event log, scripted runs | Done |
 | Your own designs (M9): `virtualbasys run`, Verilog and SystemVerilog | Done |
+| Rendered board: a ray-traced 3D Basys 3 with live parts | Done |
 | Open and reload designs from the window, with build output (M10) | Next |
 | Parallel gate-level engine, RTL-vs-netlist mismatch checker, timing estimate | Planned |
 
@@ -148,4 +151,5 @@ Documentation: [your own designs](docs/design_loading.md) ·
 [scripted runs](docs/qt_scripted_runs.md) · [simulation controls](docs/qt_control.md) ·
 [inspector and log](docs/qt_inspector_log.md) · [UART terminal](docs/qt_uart.md) ·
 [VGA monitor](docs/qt_vga.md) · [build and testing](docs/qt_build.md) ·
-[board guide](docs/qt_board.md) · [roadmap](docs/migration_plan.md)
+[board guide](docs/qt_board.md) · [rendered board](docs/board_rendering.md) ·
+[roadmap](docs/migration_plan.md)

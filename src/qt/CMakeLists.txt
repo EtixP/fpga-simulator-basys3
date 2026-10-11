@@ -25,6 +25,10 @@ add_library(vb_qt_launcher STATIC Launcher.h Launcher.cpp)
 target_link_libraries(vb_qt_launcher PUBLIC
   vb_qt_adapter vb_board vb_script Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::QuickControls2)
 
+# The rendered board's part sprites (tools/board_render.py writes them).
+file(GLOB VB_BOARD_SPRITES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" CONFIGURE_DEPENDS
+     "${CMAKE_CURRENT_SOURCE_DIR}/board/sprites/*.png")
+
 # Each launcher executable gets its own copy of the shell QML module, in
 # distinct generated directories.
 function(vb_add_qt_shell target)
@@ -37,6 +41,10 @@ function(vb_add_qt_shell target)
               BoardSwitch.qml BoardLed.qml BoardButton.qml SevenSegmentDigit.qml
               SimulationToolbar.qml UartTerminal.qml VgaMonitor.qml
               InspectorPanel.qml EventLogView.qml
+              # Where the rendered board's parts go, from tools/board_render.py
+              BoardLayout.js
+    # The rendered board and its parts' sprites, from tools/board_render.py
+    RESOURCES board/board.png ${VB_BOARD_SPRITES}
   )
   target_link_libraries(${target} PRIVATE vb_qt_launcher vb_qt_adapterplugin)
 endfunction()

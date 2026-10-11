@@ -3,6 +3,7 @@ build/
 *.fst
 *.bmp
 .DS_Store
+__pycache__/
 
 # Local agent instructions, settings and session notes
 CLAUDE.md

@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import VirtualBasys.Board
+import "BoardLayout.js" as BoardLayout
 
 Control {
     id: view
@@ -23,17 +24,18 @@ Control {
             ancestor = ancestor.parent
         if (ancestor !== view)
             return
-        const position = item.mapToItem(viewport.contentItem, 0, 0)
+        // The board is scaled: map the whole item, not just its corner.
+        const position = item.mapToItem(viewport.contentItem, 0, 0, item.width, item.height)
         let left = viewport.contentX
         let top = viewport.contentY
         if (position.x < left)
             left = position.x - 8
-        else if (position.x + item.width > left + viewport.width)
-            left = position.x + item.width - viewport.width + 8
+        else if (position.x + position.width > left + viewport.width)
+            left = position.x + position.width - viewport.width + 8
         if (position.y < top)
             top = position.y - 8
-        else if (position.y + item.height > top + viewport.height)
-            top = position.y + item.height - viewport.height + 8
+        else if (position.y + position.height > top + viewport.height)
+            top = position.y + position.height - viewport.height + 8
         viewport.contentX = Math.max(0, Math.min(left, viewport.contentWidth - viewport.width))
         viewport.contentY = Math.max(0, Math.min(top, viewport.contentHeight - viewport.height))
     }
@@ -43,15 +45,26 @@ Control {
         function onActiveFocusItemChanged() { view.revealFocusedControl() }
     }
 
-    // Preserve usable physical control sizes at narrow pane widths. Scrolling
-    // changes only the viewport; model rows always retain their board indices.
+    // The rendered board scales to fit the pane (its width only below the VGA
+    // monitor), up to 10 px per mm and not below minimumScale, so its
+    // controls keep a usable size (a switch stays about 24 x 48 px); smaller
+    // panes scroll instead. At 0.42 the whole board fits the default window.
+    // Model rows always retain their board indices.
+    readonly property real minimumScale: 0.42
+    readonly property real boardScale: {
+        const widthFit = (viewport.width - 32) / BoardLayout.width
+        const heightFit = (viewport.height - 32 - header.implicitHeight - contents.spacing)
+            / BoardLayout.height
+        const fit = vgaLoader.active ? widthFit : Math.min(widthFit, heightFit)
+        return Math.max(minimumScale, Math.min(1, fit))
+    }
     contentItem: Flickable {
         id: viewport
         objectName: "boardFlickable"
         clip: true
         // Whole-pixel scrolling keeps the VGA monitor's pixels crisp.
         pixelAligned: true
-        contentWidth: Math.max(width, 744)
+        contentWidth: Math.max(width, BoardLayout.width * view.boardScale + 32)
         contentHeight: contents.implicitHeight + 32
         boundsBehavior: Flickable.StopAtBounds
         onWidthChanged: Qt.callLater(view.revealFocusedControl)
@@ -68,6 +81,7 @@ Control {
 
             // Designs that drive all VGA pins get a monitor first, above the board.
             Loader {
+                id: vgaLoader
                 objectName: "vgaMonitorLoader"
                 Layout.fillWidth: true
                 active: view.board !== null && view.board.vga.available
@@ -80,6 +94,7 @@ Control {
             }
 
             ColumnLayout {
+                id: header
                 Layout.fillWidth: true
                 spacing: 5
                 RowLayout {
@@ -107,137 +122,120 @@ Control {
                 }
             }
 
-            RowLayout {
+            // The rendered board (board/board.png, made by tools/board_render.py
+            // from a 3D model) with each live part placed where BoardLayout.js
+            // says, in board units of 0.1 mm. A part in its other state (switch
+            // on, LED lit, button pressed, segment lit) shows a sprite rendered
+            // in that state over the board image.
+            Item {
+                id: boardFrame
+                objectName: "boardFrame"
                 Layout.fillWidth: true
-                spacing: 16
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 226
-                    radius: 10
-                    color: view.palette.base
-                    border.color: view.palette.mid
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 14
-                        spacing: 8
-                        Label {
-                            text: qsTr("SEVEN-SEGMENT DISPLAY")
-                            font.pixelSize: 10
-                            font.letterSpacing: 1
-                            color: view.palette.placeholderText
-                        }
-                        Item { Layout.fillHeight: true }
-                        Row {
-                            Layout.alignment: Qt.AlignHCenter
-                            layoutDirection: Qt.RightToLeft
-                            spacing: 10
-                            Repeater {
-                                model: view.board ? view.board.digits : null
-                                SevenSegmentDigit {
-                                    objectName: "digit" + digit
-                                    available: view.board !== null && view.board.hasDisplay
-                                }
-                            }
-                        }
-                        Item { Layout.fillHeight: true }
-                        Label {
-                            Layout.alignment: Qt.AlignHCenter
-                            text: view.board !== null && view.board.hasDisplay
-                                ? qsTr("AN3  →  AN0") : qsTr("Display not bound")
-                            color: view.palette.placeholderText
-                            font.pixelSize: 11
-                        }
-                    }
-                }
-                Rectangle {
-                    Layout.preferredWidth: 230
-                    Layout.preferredHeight: 226
-                    radius: 10
-                    color: view.palette.base
-                    border.color: view.palette.mid
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 14
-                        spacing: 8
-                        Label {
-                            text: qsTr("PUSH BUTTONS")
-                            font.pixelSize: 10
-                            font.letterSpacing: 1
-                            color: view.palette.placeholderText
-                        }
-                        GridLayout {
-                            Layout.alignment: Qt.AlignHCenter
-                            columns: 3
-                            rowSpacing: 5
-                            columnSpacing: 5
-                            Repeater {
-                                model: view.board ? view.board.buttons : null
-                                BoardButton {
-                                    required property int index
-                                    objectName: "button" + index
-                                    Layout.row: [1, 0, 1, 1, 2][index]
-                                    Layout.column: [1, 1, 0, 2, 1][index]
-                                    // Capture the target, so a held press can be
-                                    // released even when this view is rebound.
-                                    writeInput: {
-                                        const target = view.board
-                                        const row = index
-                                        return function(held) {
-                                            return target !== null && target.setButton(row, held)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+                implicitHeight: BoardLayout.height * view.boardScale
 
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: ioLayout.implicitHeight + 28
-                radius: 10
-                color: view.palette.base
-                border.color: view.palette.mid
-                ColumnLayout {
-                    id: ioLayout
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.margins: 14
-                    spacing: 8
-                    Label {
-                        text: qsTr("LEDS / SWITCHES")
-                        font.pixelSize: 10
-                        font.letterSpacing: 1
-                        color: view.palette.placeholderText
+                Item {
+                    id: boardItem
+                    // Centred when the pane is wider than the scaled board
+                    x: Math.max(0, (boardFrame.width - BoardLayout.width * view.boardScale) / 2)
+                    width: BoardLayout.width
+                    height: BoardLayout.height
+                    scale: view.boardScale
+                    transformOrigin: Item.TopLeft
+
+                    Image {
+                        objectName: "boardImage"
+                        anchors.fill: parent
+                        source: "board/board.png"
+                        smooth: true
+                        mipmap: true
                     }
-                    RowLayout {
-                        Layout.fillWidth: true
-                        layoutDirection: Qt.RightToLeft
-                        spacing: 2
-                        Repeater {
-                            model: view.board ? view.board.leds : null
-                            BoardLed {
-                                required property int index
-                                objectName: "led" + index
-                                Layout.fillWidth: true
+                    // The DONE LED lights once the FPGA is configured, that is,
+                    // while a design is loaded.
+                    Image {
+                        objectName: "doneLed"
+                        x: BoardLayout.done.sprite[0]
+                        y: BoardLayout.done.sprite[1]
+                        width: BoardLayout.done.sprite[2]
+                        height: BoardLayout.done.sprite[3]
+                        source: "board/sprites/done.png"
+                        visible: view.connected
+                        smooth: true
+                        mipmap: true
+                    }
+
+                    Repeater {
+                        model: view.board ? view.board.digits : null
+                        SevenSegmentDigit {
+                            objectName: "digit" + digit
+                            available: view.board !== null && view.board.hasDisplay
+                            cell: BoardLayout.digits[digit]
+                            x: BoardLayout.digits[digit].rect[0]
+                            y: BoardLayout.digits[digit].rect[1]
+                            width: BoardLayout.digits[digit].rect[2]
+                            height: BoardLayout.digits[digit].rect[3]
+                        }
+                    }
+                    // A connected design's unbound display is veiled like any
+                    // other unbound part. Without a design no part is placed.
+                    Rectangle {
+                        objectName: "displayVeil"
+                        x: BoardLayout.display.rect[0]
+                        y: BoardLayout.display.rect[1]
+                        width: BoardLayout.display.rect[2]
+                        height: BoardLayout.display.rect[3]
+                        radius: 4
+                        color: "#0a1a33"
+                        opacity: 0.6
+                        visible: view.connected && !view.board.hasDisplay
+                    }
+                    Repeater {
+                        model: view.board ? view.board.buttons : null
+                        BoardButton {
+                            required property int index
+                            objectName: "button" + index
+                            x: BoardLayout.buttons[index].rect[0]
+                            y: BoardLayout.buttons[index].rect[1]
+                            width: BoardLayout.buttons[index].rect[2]
+                            height: BoardLayout.buttons[index].rect[3]
+                            spriteRect: BoardLayout.buttons[index].sprite
+                            spriteSource: "board/sprites/button-%1.png".arg(index)
+                            // Capture the target, so a held press can be
+                            // released even when this view is rebound.
+                            writeInput: {
+                                const target = view.board
+                                const row = index
+                                return function(held) {
+                                    return target !== null && target.setButton(row, held)
+                                }
                             }
                         }
                     }
-                    RowLayout {
-                        Layout.fillWidth: true
-                        layoutDirection: Qt.RightToLeft
-                        spacing: 2
-                        Repeater {
-                            model: view.board ? view.board.switches : null
-                            BoardSwitch {
-                                required property int index
-                                objectName: "sw" + index
-                                Layout.fillWidth: true
-                                onToggleRequested: function(value) {
-                                    if (view.board) view.board.setSwitch(index, value)
-                                }
+                    Repeater {
+                        model: view.board ? view.board.leds : null
+                        BoardLed {
+                            required property int index
+                            objectName: "led" + index
+                            x: BoardLayout.leds[index].rect[0]
+                            y: BoardLayout.leds[index].rect[1]
+                            width: BoardLayout.leds[index].rect[2]
+                            height: BoardLayout.leds[index].rect[3]
+                            spriteRect: BoardLayout.leds[index].sprite
+                            spriteSource: "board/sprites/led-%1.png".arg(index)
+                        }
+                    }
+                    Repeater {
+                        model: view.board ? view.board.switches : null
+                        BoardSwitch {
+                            required property int index
+                            objectName: "sw" + index
+                            x: BoardLayout.switches[index].rect[0]
+                            y: BoardLayout.switches[index].rect[1]
+                            width: BoardLayout.switches[index].rect[2]
+                            height: BoardLayout.switches[index].rect[3]
+                            spriteRect: BoardLayout.switches[index].sprite
+                            spriteSource: "board/sprites/switch-%1.png".arg(index)
+                            onToggleRequested: function(value) {
+                                if (view.board) view.board.setSwitch(index, value)
                             }
                         }
                     }

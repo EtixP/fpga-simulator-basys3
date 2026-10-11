@@ -12,8 +12,8 @@ Control {
     property bool available: true
 
     objectName: "digit" + digit
-    implicitWidth: 46
-    implicitHeight: 78
+    implicitWidth: 60
+    implicitHeight: 90
     padding: 0
     hoverEnabled: true
     Accessible.role: Accessible.StaticText
@@ -25,44 +25,45 @@ Control {
     ToolTip.text: !available ? qsTr("AN%1 is not connected").arg(digit)
         : Accessible.name
 
+    // One digit of the rendered board's display. Each lit segment shows its
+    // sprite (a render of that segment lit, with its glow) over the board image.
+    // cell is this digit's entry in BoardLayout.digits: segment rectangles in
+    // board units, relative to the digit, in the order A-G then the point.
+    property var cell: null
+    readonly property var segmentNames: ["a", "b", "c", "d", "e", "f", "g", "dp"]
+    function segmentRect(index) {
+        return cell ? cell.segments[index].rect : [0, 0, 0, 0]
+    }
     contentItem: Item {
-        id: face
-        readonly property real xScale: width / 46
-        readonly property real yScale: height / 78
         Repeater {
             model: 7
-            delegate: Rectangle {
+            delegate: Image {
                 required property int index
                 objectName: "segment" + index
+                // A/B/C/D/E/F/G: top, upper right, lower right, bottom, lower
+                // left, upper left, middle. The adapter already uses lit bits.
                 readonly property bool lit: control.available && (control.segments & (1 << index)) !== 0
-                readonly property bool horizontal: index === 0 || index === 3 || index === 6
-                // A/B/C/D/E/F/G: top, upper right, lower right, bottom,
-                // lower left, upper left, middle. The adapter already uses lit bits.
-                x: (horizontal ? 8 : (index === 1 || index === 2 ? 32 : 4)) * face.xScale
-                y: (index === 0 ? 3 : index === 3 ? 59 : index === 6 ? 31
-                    : index === 1 || index === 5 ? 7 : 35) * face.yScale
-                width: (horizontal ? 24 : 4) * face.xScale
-                height: (horizontal ? 4 : 23) * face.yScale
-                radius: Math.min(face.xScale, face.yScale)
-                color: lit ? "#ff746c" : control.available ? "#462c32" : "#302c32"
+                x: control.segmentRect(index)[0]
+                y: control.segmentRect(index)[1]
+                width: control.segmentRect(index)[2]
+                height: control.segmentRect(index)[3]
+                source: "board/sprites/segment-%1-%2.png".arg(control.digit).arg(control.segmentNames[index])
+                opacity: lit ? 1 : 0
+                smooth: true
+                mipmap: true
             }
         }
-        Rectangle {
+        Image {
             objectName: "decimalPoint"
             readonly property bool lit: control.available && control.decimalPoint
-            x: 39 * face.xScale
-            y: 59 * face.yScale
-            width: 5 * face.xScale
-            height: 5 * face.yScale
-            radius: width / 2
-            color: lit ? "#ff746c" : control.available ? "#462c32" : "#302c32"
-        }
-        Label {
-            anchors.horizontalCenter: parent.horizontalCenter
-            y: 68 * face.yScale
-            text: "AN" + control.digit
-            color: control.available ? "#a9bac5" : "#718492"
-            font.pixelSize: 9 * Math.min(face.xScale, face.yScale)
+            x: control.segmentRect(7)[0]
+            y: control.segmentRect(7)[1]
+            width: control.segmentRect(7)[2]
+            height: control.segmentRect(7)[3]
+            source: "board/sprites/segment-%1-dp.png".arg(control.digit)
+            opacity: lit ? 1 : 0
+            smooth: true
+            mipmap: true
         }
     }
 }

@@ -11,7 +11,12 @@ Only XDC-bound inputs are enabled. Click or press Space on a focused switch to
 request its opposite state. Hold the mouse button or Space on a push button to
 assert it; release to clear it. Visual state always comes from the adapter's cached
 models, including external input changes and rejected writes. Unbound resources
-retain their physical slots and stay dark/disabled.
+retain their physical slots, disabled under a dark veil.
+
+The board is a ray-traced render of a 3D model of the Basys 3; each live part shows
+a sprite rendered in its other state (switch on, LED lit, button pressed, segment
+lit) over it, and the DONE LED lights while a design is loaded. How the images are
+made and regenerated is in [board_rendering.md](board_rendering.md).
 
 Switches and LEDs run from 15 on the left to 0 on the right. Digits run from AN3
 on the left to AN0 on the right; the stopwatch's AN2 decimal point yields SS.CC.
@@ -80,6 +85,7 @@ Run native interaction tests one at a time and keep their window in the foregrou
 Focus loss intentionally cancels a held button, changing its input timestamp and
 therefore the fixed-stimulus golden comparison. Use the isolated offscreen CTest
 configuration for automated runs.
-Source-QML interaction tests fail on QML warnings. The launcher smoke test separately
-checks embedded QML and a rendered frame. Screenshots are review artifacts, not
+Source-QML interaction tests fail on QML warnings. The launcher smoke test
+separately checks embedded QML, its board images and a rendered frame, and fails
+on QML warnings too. Screenshots are review artifacts, not
 platform-dependent pixel goldens.

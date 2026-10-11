@@ -88,7 +88,8 @@ cmake --build build/qt --target virtualbasys_qt_qmllint virtualbasys_qt_stopwatc
 
 The optional `qt_qml_smoke` CTest runs with Qt's offscreen platform, software
 renderer and Basic controls style. It requires a loaded window and a rendered
-frame, fails on loading/rendering errors, and has a 10-second internal deadline
+frame, fails on loading/rendering errors and on any QML warning (such as a board
+image missing from the launcher's resources), and has a 10-second internal deadline
 and a 20-second CTest limit. Running `--smoke-test` directly also exercises the
 native platform/graphics path and exits after its first frame.
 

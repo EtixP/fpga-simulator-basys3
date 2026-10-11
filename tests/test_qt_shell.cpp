@@ -172,6 +172,12 @@ private slots:
         QVERIFY(!label("workspaceTitle").contains(QStringLiteral("ready"), Qt::CaseInsensitive));
         QVERIFY(item("horizontalSplit"));
         QVERIFY(item("verticalSplit"));
+        // With no design the board image shows, unconfigured: DONE is dark and,
+        // as no part is placed, nothing is veiled.
+        QVERIFY(item("boardImage")->isVisible());
+        QVERIFY(!item("doneLed")->isVisible());
+        QVERIFY(!item("sw0"));
+        QVERIFY(!item("displayVeil")->isVisible());
         QVERIFY(capture("shell-default"));
     }
 

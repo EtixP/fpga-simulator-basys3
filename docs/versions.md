@@ -5,11 +5,12 @@ workflow must pin these same versions.
 
 | Tool | Version | Source | Notes |
 |---|---|---|---|
-| Verilator | 5.050 (2026-07-01) | Homebrew | build + test dependency |
+| Verilator | 5.052 (2026-09-05) | Homebrew | build + test dependency; 5.050 until Homebrew upgraded it on 2026-10-05 (all suites pass on 5.052) |
 | CMake | 4.0.0 | Homebrew | `find_package(verilator)` + `verilate()` verified against it |
 | Apple clang | 21.0.0 (clang-2100.1.1.101) | Xcode CLT | C++20 |
 | Yosys | 0.66 | Homebrew | installed, first used in phase 3 (synthesis / NetlistEngine) |
 | Qt | 6.11.2 | Homebrew `qtbase` + `qtdeclarative` | optional Qt frontend; minimum 6.5; Core/Gui/Quick/Qml/QuickControls2, Test for adapter tests |
+| Blender | 5.2.2 LTS | Homebrew cask `blender` | optional: only `tools/board_render.py` uses it, to regenerate the committed board images (4.2 or later); Cycles on the Metal GPU |
 | Surfer | 0.7.0 | Homebrew | VCD acceptance gate (headless `surfer server`); NOTE: Homebrew's gtkwave cask is DISABLED upstream — GTKWave only via GitHub-release app, manual |
 | macOS | Darwin 25.5.0, arm64 | — | Apple Silicon primary target |
 
