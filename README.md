@@ -59,7 +59,11 @@ Run your own design, or one of the examples:
 ```sh
 ./build/qt/bin/virtualbasys run examples/counter.v --xdc examples/counter.xdc
 ./build/qt/bin/virtualbasys run top.sv more.sv -I include --top top
+./build/qt/bin/virtualbasys run demos/nim/ChipInterface.sv demos/nim/NimGame.sv
 ```
+
+The last one is a game of Nim against the FPGA; its controls are listed at the
+top of [ChipInterface.sv](demos/nim/ChipInterface.sv).
 
 The four examples also have their own launchers: `virtualbasys_qt` (counter),
 `_stopwatch`, `_uart` and `_vga`, in `build/qt/src/qt/`. All open paused; press
@@ -118,6 +122,12 @@ Qt Quick window: board, controls, inspector, event log, UART terminal, VGA monit
 Zoomed in with ⌘-scroll, a pinch or the + button, the board's silkscreen reads at a
 glance; Fit or ⌘0 shows the whole board again.
 
+![Nim against the FPGA mid-game: piles 2 4 5 2 on the display, the cursor's decimal point on the right pile, LD15 and LD0 lit, SW15 and SW2 up](docs/screenshots/qt-nim.png)
+
+Nim against the FPGA ([demos/nim](demos/nim)). You took four stones from the
+right pile with SW2 and BTND; the FPGA thought for 0.3 s and took one from the
+left. LD15 says it is your turn, and with SW15 up, LD0 shows the nim-sum hint.
+
 | Inspector with an RTL watch | Event log filtered to one LED |
 | --- | --- |
 | ![Inspector listing ports, pin bindings and a counter.count watch at cycle 30](docs/screenshots/qt-inspector.png) | ![Event log recording counter LED events, filtered to LED 3](docs/screenshots/qt-event-log.png) |
@@ -134,8 +144,8 @@ glance; Fit or ⌘0 shows the whole board again.
 | --- | --- |
 | ![Counter after a scripted two-frame run: finished, controls disabled, switches preset by the script](docs/screenshots/qt-scripted-counter.png) | ![Stopwatch showing 00.29 on the rendered display after the README's scripted run](docs/screenshots/qt-stopwatch.png) |
 
-Each screenshot was captured by the app itself, running the examples' real RTL
-in the UI tests and in scripted runs.
+Each screenshot was captured by the app itself, running the examples' and the
+demo's real RTL in the UI tests and in scripted runs.
 
 ## Status
 
