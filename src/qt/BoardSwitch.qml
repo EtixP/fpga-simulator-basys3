@@ -31,9 +31,12 @@ Button {
         if (control.enabled)
             control.toggleRequested(!control.active)
     }
-    ToolTip.visible: hovered
-    ToolTip.text: !available ? qsTr("%1 is not connected").arg(resource)
-        : qsTr("%1 · %2").arg(resource).arg(active ? qsTr("On") : qsTr("Off"))
+    BoardToolTip {
+        target: control
+        showing: control.hovered
+        text: !control.available ? qsTr("%1 is not connected").arg(control.resource)
+            : qsTr("%1 · %2").arg(control.resource).arg(control.active ? qsTr("On") : qsTr("Off"))
+    }
 
     // A slide switch on the rendered board. The board image shows it off; when
     // on, its sprite (a render of this switch on) covers it. Unbound switches

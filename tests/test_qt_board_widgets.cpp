@@ -16,6 +16,7 @@
 #include <QQuickWindow>
 #include <QSet>
 #include <QStyleHints>
+#include <QWheelEvent>
 #include <QTest>
 #include <QtQml/qqmlextensionplugin.h>
 
@@ -152,8 +153,12 @@ private:
     }
     bool press(QQuickItem* target) {
         if (!focusControl(target)) return false;
-        QTest::mousePress(window_, Qt::LeftButton, Qt::NoModifier,
-                          bounds(target).center().toPoint());
+        // Move there first, as a real pointer does: the control it leaves
+        // closes its tooltip, which would otherwise take this press. Then
+        // press where the target is once the pane has settled.
+        QTest::mouseMove(window_, bounds(target).center().toPoint());
+        QTest::qWait(50);
+        QTest::mousePress(window_, Qt::LeftButton, Qt::NoModifier, bounds(target).center().toPoint());
         return true;
     }
     void release(QQuickItem* target) {
@@ -175,6 +180,19 @@ private:
     static QRectF layoutRect(const QJSValue& r) {
         return QRectF(r.property(0).toNumber(), r.property(1).toNumber(),
                       r.property(2).toNumber(), r.property(3).toNumber());
+    }
+    // The board's fitted scale once the pane has stopped resizing: a native
+    // window's size reads back before its layout has settled.
+    double settledFitScale() const {
+        auto* view = item(QStringLiteral("boardView"));
+        double last = -1;
+        for (int attempt = 0; attempt < 80; ++attempt) {
+            QTest::qWait(25);
+            const double now = view->property("fitScale").toDouble();
+            if (now == last) return now;
+            last = now;
+        }
+        return last;
     }
     static QRectF geometry(QQuickItem* target) {
         return QRectF(target->x(), target->y(), target->width(), target->height());
@@ -540,8 +558,8 @@ private slots:
     }
 
     // tools/board_render.py writes BoardLayout.js, board.png and the sprites in one
-    // run: every part has its sprite, at the size its rectangle gives (the render
-    // has 16 px per mm, the layout 10 units per mm), inside the board image. A
+    // run: every part has its sprite, at the size its rectangle gives (the layout
+    // has 10 units per mm and records the render's pixels per mm), inside the board image. A
     // switch, LED, button or DONE sprite's feathered edge is the board itself, so
     // it must match board.png where the layout places it: a moved rectangle, a
     // flipped offset or a swapped sprite does not (measured 0.7/255 placed right,
@@ -550,7 +568,8 @@ private slots:
         QJSEngine js;
         const QJSValue layout = boardLayout(js);
         QVERIFY(layout.isObject());
-        constexpr double unitsPerPixel = 10.0 / 16.0;
+        const double unitsPerPixel = 10.0 / layout.property(QStringLiteral("pixelsPerMm")).toNumber();
+        QVERIFY(unitsPerPixel > 0);
         const auto size = [](const QString& path) {
             return QImageReader(QStringLiteral(VB_QT_QML_DIR "/board/") + path).size();
         };
@@ -705,6 +724,194 @@ private slots:
 
         QVERIFY(item(QStringLiteral("doneLed"))->isVisible());
         QVERIFY(!item(QStringLiteral("displayVeil"))->isVisible());
+    }
+
+    // The zoom buttons, shortcuts and Command-scroll magnify the board, around
+    // the pointer for a scroll, up to the render's own resolution; Fit restores
+    // the fitted board. Inputs still reach the right part, and zooming never
+    // advances virtual time.
+    void zoomMagnifiesAroundThePointer() {
+        auto* view = item(QStringLiteral("boardView"));
+        auto* zoomIn = item(QStringLiteral("zoomIn"));
+        auto* zoomOut = item(QStringLiteral("zoomOut"));
+        auto* zoomFit = item(QStringLiteral("zoomFit"));
+        QVERIFY(view && zoomIn && zoomOut && zoomFit);
+        const auto scale = [view] { return view->property("boardScale").toDouble(); };
+        const auto wheel = [this](const QPointF& at, int delta) {
+            QWheelEvent event(at, window_->mapToGlobal(at), QPoint(), QPoint(0, delta), Qt::NoButton,
+                              Qt::ControlModifier, Qt::NoScrollPhase, false);
+            QCoreApplication::sendEvent(window_, &event);
+        };
+        const double fit = settledFitScale();
+        QVERIFY(qAbs(scale() - fit) < 1e-9);
+        const double switchWidth = bounds(control("sw", 0)).width();
+        QVERIFY(zoomIn->isEnabled() && !zoomOut->isEnabled() && !zoomFit->isEnabled());
+
+        // Never below the fitted board.
+        QTest::keyClick(window_, Qt::Key_Minus, Qt::ControlModifier);
+        wheel(bounds(control("led", 0)).center(), -120);
+        QTest::qWait(50);
+        QVERIFY(qAbs(scale() - fit) < 1e-9);
+
+        // A fraction of a notch while the board is still centred in the pane:
+        // it grows about its centre, but the LED under the pointer keeps its
+        // height in the pane.
+        const QPointF ledAt = bounds(control("led", 0)).center();
+        wheel(ledAt, 40);
+        QTRY_VERIFY(scale() > fit * 1.05);
+        QTRY_VERIFY2(bounds(item(QStringLiteral("boardImage"))).width()
+                         < item(QStringLiteral("boardFlickable"))->width() - 32,
+                     "the board should still be narrower than the pane");
+        QTRY_VERIFY(qAbs(bounds(control("led", 0)).center().y() - ledAt.y()) < 2.0);
+        QTest::keyClick(window_, Qt::Key_0, Qt::ControlModifier);
+        QTRY_VERIFY(qAbs(scale() - (fit)) < 1e-9);
+
+        // The zoom bar sits in the pane's title bar: after zooming it is still
+        // where it was, and its buttons work without scrolling to them.
+        const QRectF barAt = bounds(item(QStringLiteral("zoomBar")));
+        QTest::mouseClick(window_, Qt::LeftButton, Qt::NoModifier, bounds(zoomIn).center().toPoint());
+        QTRY_VERIFY(qAbs(scale() - (fit * 1.25)) < 1e-9);
+        QTRY_VERIFY(qAbs(bounds(control("sw", 0)).width() - switchWidth * 1.25) < 0.5);
+        QVERIFY(zoomOut->isEnabled() && zoomFit->isEnabled());
+        QCOMPARE(bounds(item(QStringLiteral("zoomBar"))), barAt);
+        auto* pane = item(QStringLiteral("workspacePane"));
+        QVERIFY(bounds(pane).contains(bounds(zoomOut)) && bounds(pane).contains(bounds(zoomFit)));
+        // in the pane's title bar, clear of the scrolled board
+        QVERIFY(!bounds(item(QStringLiteral("boardFlickable"))).intersects(bounds(zoomOut)));
+        QTest::mouseClick(window_, Qt::LeftButton, Qt::NoModifier, bounds(zoomOut).center().toPoint());
+        QTRY_VERIFY(qAbs(scale() - (fit)) < 1e-9);
+        QTest::mouseClick(window_, Qt::LeftButton, Qt::NoModifier, bounds(zoomIn).center().toPoint());
+        QTRY_VERIFY(qAbs(scale() - (fit * 1.25)) < 1e-9);
+
+        // Command-scroll (ControlModifier in Qt) over BTNC zooms around it.
+        auto* target = control("button", 0);
+        const QPointF at = bounds(target).center();
+        wheel(at, 120);
+        QTRY_VERIFY(qAbs(scale() - (fit * 1.25 * 1.25)) < 1e-9);
+        QTRY_VERIFY((bounds(target).center() - at).manhattanLength() < 2.0);
+
+        // A zoomed board still routes input to the part under the pointer.
+        QVERIFY(press(control("sw", 3)));
+        release(control("sw", 3));
+        QTRY_VERIFY(board_->switchState(3));
+
+        for (int step = 0; step < 20; ++step)
+            QTest::keyClick(window_, Qt::Key_Equal, Qt::ControlModifier);
+        QTRY_VERIFY(qAbs(scale() - (view->property("maximumScale").toDouble())) < 1e-9);
+        QVERIFY(!zoomIn->isEnabled());
+        QTest::keyClick(window_, Qt::Key_Minus, Qt::ControlModifier);
+        QTRY_VERIFY(qAbs(scale() - (view->property("maximumScale").toDouble() / 1.25)) < 1e-9);
+        QTest::keyClick(window_, Qt::Key_0, Qt::ControlModifier);
+        QTRY_VERIFY(qAbs(scale() - (fit)) < 1e-9);
+        QVERIFY(!zoomOut->isEnabled() && !zoomFit->isEnabled());
+        QCOMPARE(pins_->now(), uint64_t{0});
+        QCOMPARE(pins_->steps, 0u);
+    }
+
+    // The board is drawn scaled but popups are not: a hovered part's tooltip
+    // must open clear of the part, or it covers the part and takes the click
+    // meant for it (it did, below scale 1, before BoardToolTip).
+    void hoverTooltipsLeaveTheirPartClickable() {
+        const auto openTip = [this]() -> QQuickItem* {
+            for (auto* layer : window_->contentItem()->childItems())
+                if (QByteArray(layer->metaObject()->className()) == "QQuickOverlay")
+                    for (auto* popup : layer->childItems())
+                        if (popup->isVisible()) return popup;
+            return nullptr;
+        };
+        QList<QQuickItem*> parts;
+        for (int row = 0; row < 5; ++row) parts.append(control("button", row));
+        for (int row : {0, 7, 15}) parts.append(control("sw", row));
+        parts.append(control("led", 0));
+        parts.append(control("digit", 2));
+        for (auto* part : parts) {
+            QVERIFY(part && withinViewport(part));
+            QTest::mouseMove(window_, bounds(part).center().toPoint());
+            QTRY_VERIFY(openTip());
+            const QRectF tip = bounds(openTip());
+            QVERIFY2(!tip.intersects(bounds(part)),
+                     qPrintable(QStringLiteral("%1's tooltip covers it").arg(part->objectName())));
+            QVERIFY2(tip.bottom() <= bounds(part).top(),
+                     qPrintable(QStringLiteral("%1's tooltip is not above it").arg(part->objectName())));
+        }
+        auto* button = control("button", 1);
+        QTest::mouseMove(window_, bounds(button).center().toPoint());
+        QTRY_VERIFY(openTip());
+        QTest::mousePress(window_, Qt::LeftButton, Qt::NoModifier, bounds(button).center().toPoint());
+        QTRY_VERIFY(held(1));
+        release(button);
+        QVERIFY(!held(1));
+    }
+
+    // When the pane widens while zoomed in, the zoom limit falls; zooming out
+    // must still work from the zoom in effect, not from a stale larger one.
+    void zoomOutStillWorksAfterThePaneWidens() {
+        auto* view = item(QStringLiteral("boardView"));
+        const auto scale = [view] { return view->property("boardScale").toDouble(); };
+        const double maximum = view->property("maximumScale").toDouble();
+        window_->resize(960, 640);
+        QTRY_COMPARE(window_->size(), QSize(960, 640));
+        const double narrowFit = settledFitScale();
+
+        // In a narrow pane the board is wider than the pane at once, so a
+        // Command-scroll notch keeps the switch under the pointer in both axes;
+        // the header above the board must not re-wrap and shift it.
+        auto* target = control("sw", 4);
+        QVERIFY(focusControl(target));
+        const QPointF at = bounds(target).center();
+        QWheelEvent wheel(at, window_->mapToGlobal(at), QPoint(), QPoint(0, 120), Qt::NoButton,
+                          Qt::ControlModifier, Qt::NoScrollPhase, false);
+        QCoreApplication::sendEvent(window_, &wheel);
+        QTRY_VERIFY(scale() > narrowFit * 1.2);
+        QTest::qWait(100);  // let the layout settle
+        QVERIFY2((bounds(target).center() - at).manhattanLength() < 2.0,
+                 "zooming in a narrow pane moved the switch from under the pointer");
+
+        for (int step = 0; step < 20; ++step)
+            QTest::keyClick(window_, Qt::Key_Equal, Qt::ControlModifier);
+        QTRY_VERIFY(qAbs(scale() - (maximum)) < 1e-9);
+        window_->resize(1600, 1000);
+        QTRY_COMPARE(window_->size(), QSize(1600, 1000));
+        // wait for the wider pane's fit, which lowers the zoom limit
+        QTRY_VERIFY(view->property("fitScale").toDouble() > narrowFit);
+        settledFitScale();
+        QVERIFY(qAbs(scale() - (maximum)) < 1e-9);
+        QTest::keyClick(window_, Qt::Key_Minus, Qt::ControlModifier);
+        QTRY_VERIFY(qAbs(scale() - (maximum / 1.25)) < 1e-9);
+        auto* zoomOut = item(QStringLiteral("zoomOut"));
+        QTest::mouseClick(window_, Qt::LeftButton, Qt::NoModifier, bounds(zoomOut).center().toPoint());
+        QTRY_VERIFY(qAbs(scale() - (maximum / 1.25 / 1.25)) < 1e-9);
+        QTest::keyClick(window_, Qt::Key_0, Qt::ControlModifier);
+        QTRY_VERIFY(!zoomOut->isEnabled());
+    }
+
+    // Zoomed in, with a switch scrolled up to the window's top edge, there is
+    // no room above it: its tooltip must open below it, not onto it.
+    void tooltipGoesBelowAPartAtTheWindowTop() {
+        const auto openTip = [this]() -> QQuickItem* {
+            for (auto* layer : window_->contentItem()->childItems())
+                if (QByteArray(layer->metaObject()->className()) == "QQuickOverlay")
+                    for (auto* popup : layer->childItems())
+                        if (popup->isVisible()) return popup;
+            return nullptr;
+        };
+        for (int step = 0; step < 20; ++step)
+            QTest::keyClick(window_, Qt::Key_Equal, Qt::ControlModifier);
+        auto* tall = control("sw", 7);
+        auto* viewport = item(QStringLiteral("boardFlickable"));
+        QVERIFY(focusControl(tall));
+        const qreal lift = bounds(tall).top() - 10;  // the switch's top 10 px below the window's
+        viewport->setProperty("contentY", viewport->property("contentY").toReal() + lift);
+        QTRY_VERIFY(qAbs(bounds(tall).top() - 10) < 1);
+        const QPoint inside(int(bounds(tall).center().x()), int(bounds(viewport).top()) + 20);
+        QVERIFY(bounds(tall).contains(inside));
+        // Come in from the board below, as a pointer does.
+        QTest::mouseMove(window_, inside + QPoint(0, 60));
+        QTest::qWait(50);
+        QTest::mouseMove(window_, inside);
+        QTRY_VERIFY(tall->property("hovered").toBool());
+        QTRY_VERIFY(openTip());
+        QVERIFY2(!bounds(openTip()).intersects(bounds(tall)), "a tooltip covers a part at the window's top");
     }
 
     void keyboardFocusRevealsControlsInANarrowViewport() {

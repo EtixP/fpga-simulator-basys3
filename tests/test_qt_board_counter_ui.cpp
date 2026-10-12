@@ -92,6 +92,18 @@ private slots:
         QVERIFY(ui_->adapter.refresh());
         QTRY_VERIFY2(ledMismatch(60).isEmpty(), qPrintable(ledMismatch(60)));
         QVERIFY(ui_->capture("board-counter"));
+        // Zoomed in, the silkscreen reads; Fit returns to the whole board.
+        auto* view = ui_->item("boardView");
+        const double fit = view->property("boardScale").toDouble();
+        for (int step = 0; step < 3; ++step) QVERIFY(ui_->click("zoomIn"));
+        QTRY_VERIFY(qAbs(view->property("boardScale").toDouble() - (fit * 1.25 * 1.25 * 1.25)) < 1e-9);
+        QTest::mouseMove(ui_->window, QPoint(40, 40));  // park the pointer: no tooltip
+        if (auto* focused = ui_->window->activeFocusItem())  // and no focus ring
+            focused->setFocus(false);
+        QTRY_VERIFY(!ui_->item("button0")->property("hovered").toBool());  // nor hover ring
+        QVERIFY(ui_->capture("board-counter-zoomed"));
+        QVERIFY(ui_->click("zoomFit"));
+        QTRY_VERIFY(qAbs(view->property("boardScale").toDouble() - (fit)) < 1e-9);
     }
 
     void unavailableResourcesRemainVisibleAndCannotDriveInputs() {

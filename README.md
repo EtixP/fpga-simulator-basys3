@@ -29,7 +29,8 @@ examples/counter.v --xdc examples/counter.xdc --frames 3 --switches 0101
   `led`, `btnC`, `seg`, `an`, `RsRx`, `vgaRed`, ...).
 - **Use the board.** Click switches, hold buttons and type into the UART
   terminal. Switch levers slide, LEDs and segments glow, and the DONE LED
-  lights while a design is loaded. The seven-segment display multiplexes as on
+  lights while a design is loaded. Zoom in with ⌘-scroll, a pinch or the
+  board's + button to read the silkscreen. The seven-segment display multiplexes as on
   the real board, and the VGA monitor draws every frame pixel-exactly and
   reports broken sync timing.
 - **Look inside.** The inspector shows every port, its pin binding and any RTL
@@ -111,6 +112,11 @@ Qt Quick window: board, controls, inspector, event log, UART terminal, VGA monit
 - Every milestone was reviewed by independent verifiers who tried to break it.
 
 ## Screenshots
+
+![The board zoomed in with the + button in the BOARD pane's title bar: switch, LED, button and chip labels readable](docs/screenshots/qt-board-zoomed.png)
+
+Zoomed in with ⌘-scroll, a pinch or the + button, the board's silkscreen reads at a
+glance; Fit or ⌘0 shows the whole board again.
 
 | Inspector with an RTL watch | Event log filtered to one LED |
 | --- | --- |

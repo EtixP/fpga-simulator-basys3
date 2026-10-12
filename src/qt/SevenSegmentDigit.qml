@@ -21,9 +21,12 @@ Control {
         : qsTr("AN%1: %2%3").arg(digit)
             .arg(character === " " ? qsTr("blank") : character)
             .arg(decimalPoint ? qsTr(", decimal point on") : "")
-    ToolTip.visible: hovered
-    ToolTip.text: !available ? qsTr("AN%1 is not connected").arg(digit)
-        : Accessible.name
+    BoardToolTip {
+        target: control
+        showing: control.hovered
+        text: !control.available ? qsTr("AN%1 is not connected").arg(control.digit)
+            : control.Accessible.name
+    }
 
     // One digit of the rendered board's display. Each lit segment shows its
     // sprite (a render of that segment lit, with its glow) over the board image.

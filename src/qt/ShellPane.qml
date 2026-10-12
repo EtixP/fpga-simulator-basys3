@@ -7,11 +7,14 @@ Control {
     required property string title
     property color paneColor: palette.base
     default property alias body: bodyItem.data
+    // The title row, where the pane's content may place its own controls.
+    readonly property Item titleBar: titleRow
     padding: 0
     background: Rectangle { color: pane.paneColor }
     contentItem: ColumnLayout {
         spacing: 0
         Rectangle {
+            id: titleRow
             Layout.fillWidth: true
             implicitHeight: 40
             color: pane.palette.alternateBase

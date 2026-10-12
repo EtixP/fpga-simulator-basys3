@@ -13,6 +13,9 @@ Control {
     property string headingObjectName: "workspaceTitle"
     property string detailObjectName: "workspaceDetail"
     readonly property bool connected: board !== null && board.connected
+    // Where the zoom controls go: the pane's title bar, outside the scrolled
+    // board and the VGA monitor. Without one, they float over the view.
+    property Item zoomBarParent: null
 
     function revealFocusedControl() {
         const host = view.Window.window
@@ -51,13 +54,130 @@ Control {
     // panes scroll instead. At 0.42 the whole board fits the default window.
     // Model rows always retain their board indices.
     readonly property real minimumScale: 0.42
-    readonly property real boardScale: {
+    readonly property real fitScale: {
         const widthFit = (viewport.width - 32) / BoardLayout.width
         const heightFit = (viewport.height - 32 - header.implicitHeight - contents.spacing)
             / BoardLayout.height
         const fit = vgaLoader.active ? widthFit : Math.min(widthFit, heightFit)
         return Math.max(minimumScale, Math.min(1, fit))
     }
+    // Zoom magnifies the fitted board, up to the render's own resolution
+    // (BoardLayout.pixelsPerMm; a board unit is 0.1 mm). The pane scrolls, and
+    // the point under the pointer or pinch stays put.
+    property real zoom: 1
+    readonly property real maximumScale: BoardLayout.pixelsPerMm / 10
+    readonly property real maximumZoom: Math.max(1, maximumScale / fitScale)
+    // A wider pane lowers the limit; the zoom in effect never exceeds it.
+    readonly property real effectiveZoom: Math.min(zoom, maximumZoom)
+    readonly property real boardScale: fitScale * effectiveZoom
+    readonly property real zoomStep: 1.25
+    function zoomKeys(key) {
+        return (Qt.platform.os === "osx" ? "\u2318" : "Ctrl+") + key
+    }
+
+    // Sets the zoom, keeping the board point at (x, y) in the pane's visible
+    // area where it is; without a point, the middle of the visible area. The
+    // board's new place follows from the scale alone, before the layout
+    // catches up. A board narrower than the pane is centred and cannot scroll
+    // sideways, so it grows about its centre: only its height follows the point.
+    function setZoom(value, x, y) {
+        const next = Math.max(1, Math.min(value, maximumZoom))
+        if (next === effectiveZoom)
+            return
+        const atX = x === undefined ? viewport.width / 2 : x
+        const atY = y === undefined ? viewport.height / 2 : y
+        const anchor = boardItem.mapFromItem(viewport, atX, atY)
+        zoom = next
+        const scale = boardScale
+        const left = contents.x
+        const top = contents.y + boardFrame.y
+        viewport.contentX = Math.max(0, Math.min(left + anchor.x * scale - atX,
+                                                 viewport.contentWidth - viewport.width))
+        viewport.contentY = Math.max(0, Math.min(top + anchor.y * scale - atY,
+                                                 viewport.contentHeight - viewport.height))
+    }
+
+    Shortcut {
+        sequences: [StandardKey.ZoomIn, "Ctrl+="]
+        enabled: view.visible
+        onActivated: view.setZoom(view.effectiveZoom * view.zoomStep)
+    }
+    Shortcut {
+        sequences: [StandardKey.ZoomOut]
+        enabled: view.visible
+        onActivated: view.setZoom(view.effectiveZoom / view.zoomStep)
+    }
+    Shortcut {
+        sequence: "Ctrl+0"
+        enabled: view.visible
+        onActivated: view.setZoom(1)
+    }
+    // The zoom controls sit outside the scrolled content, in the pane's title
+    // bar, so they stay in reach however far the board is zoomed and never
+    // cover the board or the VGA monitor.
+    Pane {
+        id: zoomBar
+        objectName: "zoomBar"
+        parent: view.zoomBarParent !== null ? view.zoomBarParent : view
+        visible: view.visible
+        anchors.right: parent.right
+        anchors.rightMargin: 8
+        anchors.verticalCenter: view.zoomBarParent !== null ? parent.verticalCenter : undefined
+        anchors.top: view.zoomBarParent !== null ? undefined : parent.top
+        anchors.topMargin: 8
+        z: 2
+        padding: 0
+        background: Rectangle {
+            radius: 6
+            color: view.palette.window
+            opacity: view.zoomBarParent !== null ? 0 : 0.94
+            border.color: view.palette.mid
+            border.width: view.zoomBarParent !== null ? 0 : 1
+        }
+        contentItem: RowLayout {
+            spacing: 2
+            ToolButton {
+                objectName: "zoomOut"
+                implicitHeight: 30
+                topPadding: 2
+                bottomPadding: 2
+                text: "\u2212"
+                enabled: view.effectiveZoom > 1
+                focusPolicy: Qt.NoFocus
+                Accessible.name: qsTr("Zoom out")
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Zoom out (%1)").arg(view.zoomKeys("-"))
+                onClicked: view.setZoom(view.effectiveZoom / view.zoomStep)
+            }
+            ToolButton {
+                objectName: "zoomFit"
+                implicitHeight: 30
+                topPadding: 2
+                bottomPadding: 2
+                text: qsTr("Fit")
+                enabled: view.effectiveZoom > 1
+                focusPolicy: Qt.NoFocus
+                Accessible.name: qsTr("Fit the board to the pane")
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Fit the board to the pane (%1)").arg(view.zoomKeys("0"))
+                onClicked: view.setZoom(1)
+            }
+            ToolButton {
+                objectName: "zoomIn"
+                implicitHeight: 30
+                topPadding: 2
+                bottomPadding: 2
+                text: "+"
+                enabled: view.boardScale < view.maximumScale - 0.001
+                focusPolicy: Qt.NoFocus
+                Accessible.name: qsTr("Zoom in")
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Zoom in (%1)").arg(view.zoomKeys("+"))
+                onClicked: view.setZoom(view.effectiveZoom * view.zoomStep)
+            }
+        }
+    }
+
     contentItem: Flickable {
         id: viewport
         objectName: "boardFlickable"
@@ -65,12 +185,34 @@ Control {
         // Whole-pixel scrolling keeps the VGA monitor's pixels crisp.
         pixelAligned: true
         contentWidth: Math.max(width, BoardLayout.width * view.boardScale + 32)
-        contentHeight: contents.implicitHeight + 32
+        // The board is the last item: its height follows the zoom at once,
+        // where the layout's implicit height would lag until the next polish.
+        contentHeight: boardFrame.y + boardFrame.implicitHeight + 32
         boundsBehavior: Flickable.StopAtBounds
         onWidthChanged: Qt.callLater(view.revealFocusedControl)
         onHeightChanged: Qt.callLater(view.revealFocusedControl)
         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
         ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
+
+        // Command-scroll (Ctrl elsewhere) and trackpad pinch zoom around the pointer.
+        WheelHandler {
+            objectName: "boardZoomWheel"
+            acceptedModifiers: Qt.ControlModifier
+            target: null
+            onWheel: function(event) {
+                const at = viewport.mapFromItem(viewport.contentItem, point.position.x, point.position.y)
+                view.setZoom(view.effectiveZoom * Math.pow(view.zoomStep, event.angleDelta.y / 120), at.x, at.y)
+            }
+        }
+        PinchHandler {
+            target: null
+            property real startZoom: 1
+            onActiveChanged: if (active) startZoom = view.effectiveZoom
+            onActiveScaleChanged: {
+                const at = viewport.mapFromItem(viewport.contentItem, centroid.position.x, centroid.position.y)
+                view.setZoom(startZoom * activeScale, at.x, at.y)
+            }
+        }
 
         ColumnLayout {
             id: contents
@@ -80,10 +222,13 @@ Control {
             spacing: 16
 
             // Designs that drive all VGA pins get a monitor first, above the board.
+            // The monitor and the header keep the visible pane's width: the
+            // board's zoom must not magnify the monitor or re-wrap the header,
+            // which would move the board out from under the pointer.
             Loader {
                 id: vgaLoader
                 objectName: "vgaMonitorLoader"
-                Layout.fillWidth: true
+                Layout.preferredWidth: viewport.width - 32
                 active: view.board !== null && view.board.vga.available
                 visible: active
                 sourceComponent: VgaMonitor {
@@ -95,7 +240,9 @@ Control {
 
             ColumnLayout {
                 id: header
-                Layout.fillWidth: true
+                // A nested layout fills its parent's width unless told not to.
+                Layout.fillWidth: false
+                Layout.preferredWidth: viewport.width - 32
                 spacing: 5
                 RowLayout {
                     Layout.fillWidth: true
@@ -115,7 +262,8 @@ Control {
                     objectName: view.detailObjectName
                     Layout.fillWidth: true
                     text: view.connected
-                        ? qsTr("Only bound resources are enabled. Click a switch; hold a button to press it.")
+                        ? qsTr("Only bound resources are enabled. Click a switch; hold a button to press it. Zoom with %1-scroll or a pinch.")
+                        .arg(Qt.platform.os === "osx" ? "\u2318" : "Ctrl")
                         : qsTr("Board preview. Inputs are unavailable until a design is connected.")
                     color: view.palette.placeholderText
                     wrapMode: Text.WordWrap

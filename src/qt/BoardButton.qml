@@ -91,9 +91,12 @@ Button {
     Accessible.name: resource
     Accessible.description: !available ? qsTr("Not connected")
         : qsTr("Momentary button. Hold Space or the mouse button to press.")
-    ToolTip.visible: hovered
-    ToolTip.text: !available ? qsTr("%1 is not connected").arg(resource)
-        : qsTr("Hold %1 to press").arg(resource)
+    BoardToolTip {
+        target: control
+        showing: control.hovered
+        text: !control.available ? qsTr("%1 is not connected").arg(control.resource)
+            : qsTr("Hold %1 to press").arg(control.resource)
+    }
 
     // A push button on the rendered board: while held, its sprite (a render of
     // the plunger pressed in) covers the board image, and a ring shows the press,

@@ -43,7 +43,7 @@ segments also get a soft glow, which a ray tracer does not draw.
 Segment sprites use the segment's own measured outline as their mask.
 
 Outputs, all committed so that ordinary builds never need Blender:
-- `src/qt/board/board.png`: the board with every part off, 16 px per mm, with
+- `src/qt/board/board.png`: the board with every part off, 24 px per mm, with
   a translucent shadow;
 - `src/qt/board/sprites/*.png`: one sprite per part state, 70 in all;
 - `src/qt/BoardLayout.js`: each part's rectangle and its sprite's placement, in
@@ -54,7 +54,7 @@ Outputs, all committed so that ordinary builds never need Blender:
 You need Blender 4.2 or later; 5.2 is tested. Run:
 
 ```sh
-tools/board_render.py               # 256 samples; about 12 minutes on an M1 Pro
+tools/board_render.py               # 256 samples; about 30 minutes on an M1 Pro
 tools/board_render.py --verify      # also checks the sprites against a real render
 tools/board_render.py --check       # no Blender: the committed files agree
 ```

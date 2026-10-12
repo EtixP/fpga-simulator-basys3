@@ -266,6 +266,7 @@ ApplicationWindow {
             }
 
             ShellPane {
+                id: workspacePane
                 objectName: "workspacePane"
                 SplitView.fillWidth: true
                 SplitView.minimumWidth: 400
@@ -291,6 +292,7 @@ ApplicationWindow {
                     controller: window.controller
                     headingObjectName: visible ? "workspaceTitle" : ""
                     detailObjectName: visible ? "workspaceDetail" : ""
+                    zoomBarParent: workspacePane.titleBar
                 }
             }
 

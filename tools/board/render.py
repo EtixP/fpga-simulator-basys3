@@ -221,7 +221,8 @@ def sprite_name(key):
 def build_sprites(images, W, H, bloom):
     base = images['base']
     sprites = []      # (key, rgba)
-    layout = {'width': round(S.CANVAS_W * UNITS_PER_MM), 'height': round(S.CANVAS_H * UNITS_PER_MM)}
+    layout = {'width': round(S.CANVAS_W * UNITS_PER_MM), 'height': round(S.CANVAS_H * UNITS_PER_MM),
+              'pixelsPerMm': S.PX_PER_MM}
     f = FEATHER_MM * S.PX_PER_MM
 
     def cut(variant, box, alpha=None, glow=None, glow_at=None):

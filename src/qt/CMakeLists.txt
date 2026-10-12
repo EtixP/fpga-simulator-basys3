@@ -38,7 +38,7 @@ function(vb_add_qt_shell target)
     OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${target}_qml/VirtualBasys"
     IMPORT_PATH "${CMAKE_CURRENT_BINARY_DIR}"
     QML_FILES Main.qml ShellPane.qml EmptyState.qml BoardView.qml
-              BoardSwitch.qml BoardLed.qml BoardButton.qml SevenSegmentDigit.qml
+              BoardSwitch.qml BoardLed.qml BoardButton.qml SevenSegmentDigit.qml BoardToolTip.qml
               SimulationToolbar.qml UartTerminal.qml VgaMonitor.qml
               InspectorPanel.qml EventLogView.qml
               # Where the rendered board's parts go, from tools/board_render.py

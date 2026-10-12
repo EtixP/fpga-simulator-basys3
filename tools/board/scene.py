@@ -313,9 +313,9 @@ def slide_switch(name, x, y, on):
 def user_switches():
     for i, x in enumerate(M.SWITCH_X):
         slide_switch(f'sw{i}', x, M.SWITCH_Y, False)
-        text(f'SW{i}', x - 1.25, -19.95, 1.05, bold=0.01)
+        text(f'SW{i}', x, -19.95, 1.45, bold=0.02)
         silk_line([(x - 3.15, -21.4), (x - 3.15, -20.75), (x + 3.15, -20.75), (x + 3.15, -21.4)])
-        text(f'({M.SWITCH_PINS[i]})', x, -33.55, 0.95)
+        text(f'({M.SWITCH_PINS[i]})', x, -33.75, 1.3)
 
 
 def led(name, x, y, color='green'):
@@ -332,9 +332,8 @@ def led(name, x, y, color='green'):
 def user_leds():
     for i, x in enumerate(M.LED_X):
         led(f'led{i}', x, M.LED_Y)
-        text(f'LD{i}', x + 0.25, M.LED_Y + 2.15, 1.0)
-        text(f'({M.LED_PINS[i]})', x + 0.95, M.LED_Y - 0.05, 0.95, align='LEFT')
-        silk_line([(x - 0.5, M.LED_Y - 1.25), (x + 0.5, M.LED_Y - 1.25)], 0.14)
+        text(f'LD{i}', x + 0.25, M.LED_Y + 2.0, 1.35)
+        text(f'({M.LED_PINS[i]})', x + 0.95, M.LED_Y - 0.05, 1.2, align='LEFT')
 
 
 def tact_button(name, x, y, legs_along_x, plunger='plunger', body='btn_body'):
@@ -357,14 +356,14 @@ def tact_button(name, x, y, legs_along_x, plunger='plunger', body='btn_body'):
 
 
 def buttons():
-    labels = [('BTNC (U18)', 0, -3.55, 'CENTER'), ('BTNU\n(T18)', 4.4, 0.0, 'LEFT'),
+    labels = [('BTNC (U18)', 0, -3.52, 'CENTER'), ('BTNU\n(T18)', 4.4, 0.0, 'LEFT'),
               ('BTNL\n(W19)', -4.0, 0.0, 'RIGHT'), ('BTNR\n(T17)', 3.9, 0.0, 'LEFT'),
               ('BTND\n(U17)', -4.4, 0.0, 'RIGHT')]
     for i, (x, y, along_x) in enumerate(M.BUTTONS):
         tact_button(f'btn{i}', x, y, along_x)
-        silk_rect(x, y, 5.5, 5.5)
+        silk_rect(x, y, 5.3, 5.3)
         s, dx, dy, align = labels[i]
-        text(s, x + dx, y + dy, 1.0, align=align)
+        text(s, x + dx, y + dy, 1.1 if i == 0 else 1.3, align=align)
 
 
 def seven_segment():
@@ -380,9 +379,9 @@ def seven_segment():
         d['on_material'] = 'seg_on'
     for k, (x, y) in enumerate(M.COLON):
         cylinder(f'colon{k}', x, y, top - 0.02, M.DOT_RADIUS, 0.03, 'seg_off', seg=32)
-    text('DISP1', cx - w / 2 + 1.8, cy + h / 2 + 1.25, 1.05)
-    text('CLK100MHz', cx + w / 2 + 6.2, cy + 3.6, 1.0)
-    text('(W5)', cx + w / 2 + 4.0, cy + 2.2, 1.0)
+    text('DISP1', cx - w / 2 + 2.1, cy + h / 2 + 1.3, 1.3)
+    text('CLK100MHz', cx + w / 2 + 6.6, cy + 3.6, 1.2)
+    text('(W5)', cx + w / 2 + 4.2, cy + 2.0, 1.2)
 
 
 def chip(name, x, y, size, height, label_lines, pins_per_side=0):
@@ -403,11 +402,11 @@ def chip(name, x, y, size, height, label_lines, pins_per_side=0):
 def chips():
     x, y, size, h = M.FPGA
     chip('fpga', x, y, size, h, [('XC7A35T', 1.05), ('CPG236', 0.85), ('1C', 0.85)])
-    text('IC7', x, y - size / 2 - 1.1, 1.0)
+    text('IC7', x, y - size / 2 - 1.2, 1.2)
     chip('ic1', *M.QFNS['IC1'], 9.0, 0.9, [('FT2232HQ', 0.9), ('USB-UART', 0.75)], pins_per_side=16)
-    text('IC1', M.QFNS['IC1'][0] + 5.9, M.QFNS['IC1'][1] - 3.0, 1.0)
+    text('IC1', M.QFNS['IC1'][0] + 6.1, M.QFNS['IC1'][1] - 3.0, 1.2)
     chip('ic2', *M.QFNS['IC2'], 9.0, 0.9, [('PIC24', 0.9), ('USB HOST', 0.75)], pins_per_side=16)
-    text('IC2', M.QFNS['IC2'][0] + 4.0, M.QFNS['IC2'][1] - 5.6, 1.0)
+    text('IC2', M.QFNS['IC2'][0] + 4.0, M.QFNS['IC2'][1] - 5.7, 1.2)
 
 
 def vga():
@@ -431,8 +430,8 @@ def vga():
         bx = x + sx * 12.55
         box(f'vga_standoff{sx}', bx, 39.3, TOP + 3.95, 4.8, 6.2, 5.6, 'nickel', bevel=0.5)
         cylinder(f'vga_thread{sx}', bx, 42.4, TOP + 6.75, 1.25, 1.0, 'black_gloss', axis='Y', seg=24)
-    tag('VGA', x + 0.2, 18.9, 1.1)
-    text('J1', x - 14.6, 19.6, 1.0)
+    tag('VGA', x + 0.2, 18.8, 1.35)
+    text('J1', x - 14.6, 19.5, 1.2)
 
 
 def usb_a():
@@ -446,8 +445,8 @@ def usb_a():
         prism(f'usb_spring{sx}', [(lx - 1.05, 33.8), (lx + 1.05, 33.8), (lx + 0.55, 29.3), (lx - 0.55, 29.3)],
               TOP + 6.6, 0.12, 'tin', bevel=0.05)
     box('usb_seam', x, 28.6, TOP + 6.6, 0.15, 13.6, 0.03, 'steel_dark')
-    tag('USB', x - 6.9, 19.3, 1.05)
-    text('J2', x - 8.9, 21.4, 1.0)
+    tag('USB', x - 6.9, 19.2, 1.3)
+    text('J2', x - 9.1, 21.4, 1.2)
 
 
 def micro_usb():
@@ -457,8 +456,8 @@ def micro_usb():
         box(f'musb_tab{sx}', x + sx * 4.0, y - 0.6, TOP, 1.1, 1.6, 0.9, 'nickel', bevel=0.1)
     for k in range(5):
         box(f'musb_pin{k}', x - 1.3 + k * 0.65, y - 2.5, TOP, 0.3, 1.1, 0.12, 'tin')
-    tag('PROG', x - 5.2, y - 0.6, 1.0, rot=90)
-    text('J4', x - 3.2, y - 3.5, 1.0)
+    tag('PROG', x - 5.6, y - 0.9, 1.2, rot=90)
+    text('J4', x - 3.2, y - 3.6, 1.2)
 
 
 def pmod(name, side, cy):
@@ -479,12 +478,12 @@ def pmod(name, side, cy):
         x2 = near_x
         box(f'{name}_pin_lo{k}', (x0 + x2) / 2, py, TOP + 0.9, abs(x2 - x0) + 0.32, 0.64, 0.64, 'gold', bevel=0.08)
         box(f'{name}_pin_lov{k}', x2, py, TOP, 0.64, 0.64, 1.54, 'gold', bevel=0.08)
-    lx, ly = {'JA': (-52.0, 7.9), 'JXADC': (-52.0, 2.2), 'JB': (52.0, 26.1), 'JC': (55.4, -14.4)}[name]
-    text(name, lx, ly, 1.2, bold=0.02)
+    lx, ly = {'JA': (-52.0, 7.9), 'JXADC': (-52.0, 2.2), 'JB': (53.0, 24.9), 'JC': (52.6, -14.5)}[name]
+    text(name, lx, ly, 1.6, bold=0.03)
     one_y = cy - 6.35 if name in ('JA', 'JXADC') else cy + 6.35
-    text('1', far_x + side * 1.8, one_y, 1.0)
-    tag('GND', far_x - side * 3.6, cy + 6.35 - 2.54 * (1 if name in ('JA', 'JXADC') else 4), 0.95)
-    tag('3V3', far_x - side * 3.6, cy + 6.35 - 2.54 * (0 if name in ('JA', 'JXADC') else 5), 0.95)
+    text('1', far_x - side * 1.6, one_y, 1.2)
+    tag('GND', far_x - side * 3.8, cy + 6.35 - 2.54 * (1 if name in ('JA', 'JXADC') else 4), 1.15)
+    tag('3V3', far_x - side * 3.8, cy + 6.35 - 2.54 * (0 if name in ('JA', 'JXADC') else 5), 1.15)
 
 
 def pmods():
@@ -516,36 +515,36 @@ def top_edge_parts():
         jumper(name, x, y)
     px, py = M.POWER_SWITCH
     slide_switch('power', px, py, True)
-    tag('POWER', px, py - 7.4, 1.05)
-    tag('ON', px + 4.3, py + 3.5, 1.0, rot=90)
-    tag('OFF', px + 4.3, py - 3.6, 1.0, rot=90)
+    tag('POWER', px, py - 7.5, 1.25)
+    tag('ON', px + 4.4, py + 3.5, 1.15, rot=90)
+    tag('OFF', px + 4.4, py - 3.6, 1.15, rot=90)
     x, y = M.PROG_BUTTON
     tact_button('prog', x, y, False, plunger='plunger_red', body='btn_white')
-    tag('PROG', x, y - 5.4, 1.0)
+    tag('PROG', x, y - 5.5, 1.2)
     for name, (lx, ly) in M.STATUS_LEDS.items():
         color = 'red' if name == 'LD20' else 'green'
         led(name.lower(), lx, ly, color)
-    tag('POWER', -55.0, 26.4, 1.0)
-    text('LD20', -53.9, 32.9, 0.9)
-    tag('RX', -22.96, 30.6, 1.0)
-    tag('TX', -18.96, 30.6, 1.0)
-    text('LD17', -24.6, 33.0, 0.9, rot=90)
-    text('LD18', -20.6, 33.0, 0.9, rot=90)
-    tag('BUSY', 18.74, 29.4, 1.0)
-    text('LD16', 18.74, 34.2, 0.9)
-    tag('DONE', 51.96, 27.5, 1.0)
-    text('LD19', 53.7, 30.0, 0.9, rot=90)
-    tag('MODE', 43.2, 31.2, 1.0, rot=90)
-    text('JP1', 38.1, 29.4, 0.9, rot=90)
+    tag('POWER', -55.0, 26.3, 1.15)
+    text('LD20', -52.16, 31.9, 1.1)
+    tag('RX', -22.96, 30.5, 1.2)
+    tag('TX', -18.96, 30.5, 1.2)
+    text('LD17', -22.96, 34.75, 1.1)
+    text('LD18', -18.96, 34.75, 1.1)
+    tag('BUSY', 18.74, 29.3, 1.2)
+    text('LD16', 18.74, 34.3, 1.1)
+    tag('DONE', 51.96, 27.4, 1.2)
+    text('LD19', 53.8, 30.0, 1.1, rot=90)
+    tag('MODE', 43.2, 31.2, 1.15, rot=90)
+    text('JP1', 38.0, 29.4, 1.1, rot=90)
     for k, s in enumerate(('QSPI', 'JTAG', 'USB')):
-        tag(s, 40.54, 22.4 - k * 1.55, 0.95)
-    tag('EXT', -46.4, 33.0, 0.95, rot=90)
-    tag('USB', -46.4, 28.6, 0.95, rot=90)
-    text('JP2', -48.96, 25.9, 0.9)
-    text('J6', -40.66, 20.1, 0.9)
-    tag('EXT', -44.6, 17.74, 0.95)
-    tag('GND', -36.6, 17.74, 0.95)
-    text('5V Only!', -40.66, 15.6, 0.95)
+        tag(s, 40.54, 23.35 - k * 1.75, 1.15)
+    tag('EXT', -46.4, 33.0, 1.1, rot=90)
+    tag('USB', -46.4, 28.6, 1.1, rot=90)
+    text('JP2', -48.96, 25.8, 1.1)
+    text('J6', -36.3, 19.5, 1.1)
+    tag('EXT', -44.9, 17.74, 1.1)
+    tag('GND', -36.3, 17.74, 1.1)
+    text('5V Only!', -40.66, 15.5, 1.15)
 
 
 def passive(name, x, y, kind='cap', vertical=True, size='0603'):
@@ -561,27 +560,29 @@ def passive(name, x, y, kind='cap', vertical=True, size='0603'):
 
 def passives():
     # groups around the FPGA (positions read from the reference photo)
+    # (x, y, count, pitch, vertical, kind, names, where the designators go)
     groups = [
-        (-10.0, 12.8, 4, 1.25, True, 'cap', ['C46', 'C47', 'C48', 'C45']),
-        (6.3, 12.8, 4, 1.25, True, 'cap', ['C61', 'C60', 'C62', 'C63']),
-        (-13.7, 6.5, 5, 1.6, True, 'cap', ['C53', 'C102', 'C57', 'C55', 'C103']),
-        (6.5, 6.5, 5, 1.5, True, 'cap', ['C86', 'C87', 'C88', 'C84', 'C85']),
-        (-10.4, 0.6, 4, 1.45, True, 'cap', ['C78', 'C79', 'C76', 'C77']),
-        (6.1, 0.6, 4, 1.45, True, 'cap', ['C95', 'C94', 'C97', 'C96']),
-        (-7.9, 15.6, 2, 1.3, True, 'cap', ['C49', 'C50']),
-        (6.3, 15.6, 2, 1.3, True, 'cap', ['C65', 'C64']),
-        (-8.4, -2.8, 2, 1.6, True, 'cap', ['C80', 'C81']),
-        (5.9, -2.8, 2, 1.6, True, 'cap', ['C99', 'C98']),
-        (21.4, 14.2, 2, 1.3, True, 'cap', ['C11', 'C12']),
-        (35.3, 12.0, 2, 1.3, True, 'cap', ['C8', 'C7']),
+        (-10.0, 12.8, 4, 1.25, True, 'cap', ['C46', 'C47', 'C48', 'C45'], None),
+        (6.3, 12.8, 4, 1.25, True, 'cap', ['C61', 'C60', 'C62', 'C63'], None),
+        (-13.7, 6.5, 5, 1.6, True, 'cap', ['C53', 'C102', 'C57', 'C55', 'C103'], 'above'),
+        (6.5, 6.5, 5, 1.5, True, 'cap', ['C86', 'C87', 'C88', 'C84', 'C85'], 'above'),
+        (-10.4, 0.6, 4, 1.45, True, 'cap', ['C78', 'C79', 'C76', 'C77'], 'above'),
+        (6.1, 0.6, 4, 1.45, True, 'cap', ['C95', 'C94', 'C97', 'C96'], 'above'),
+        (-7.9, 15.6, 2, 1.3, True, 'cap', ['C49', 'C50'], 'above'),
+        (6.3, 15.6, 2, 1.3, True, 'cap', ['C65', 'C64'], 'above'),
+        (-8.4, -2.8, 2, 1.6, True, 'cap', ['C80', 'C81'], None),
+        (5.9, -2.8, 2, 1.6, True, 'cap', ['C99', 'C98'], 'below'),
+        (21.4, 14.2, 2, 1.3, True, 'cap', ['C11', 'C12'], 'above'),
+        (35.3, 12.0, 2, 1.3, True, 'cap', ['C8', 'C7'], 'below'),
     ]
-    for gx, gy, n, pitch, vertical, kind, names in groups:
+    for gx, gy, n, pitch, vertical, kind, names, where in groups:
         for k in range(n):
             passive(names[k], gx + k * pitch, gy, kind, vertical)
         w = (n - 1) * pitch + 1.6
         silk_rect(gx + (n - 1) * pitch / 2, gy, w, 2.6, 0.12)
-        for k in range(n):
-            text(names[k], gx + k * pitch, gy + 2.6, 0.75, rot=90)
+        if where:
+            for k in range(n):
+                text(names[k], gx + k * pitch, gy + (2.6 if where == 'above' else -2.6), 0.75, rot=90)
     passive('C101', -16.3, 6.5, 'cap', False, '0805')
     passive('C83', 14.8, 6.5, 'cap', True, '0805')
     for k, ry in enumerate((18.3, 17.1, 15.9, 14.7)):
@@ -660,10 +661,18 @@ def traces():
 def marks():
     # The product name, as printed on the board, in a plain face
     box('logo_box', 4.4, -12.05, SILK_Z - 0.02, 21.5, 4.1, 0.03, 'silk', bevel=0.02)
-    text('BASYS 3', 4.4, -12.05, 3.0, mat='mask', z=SILK_Z + 0.02, bold=0.16)
+    # bold by overlaying shifted copies: Blender's outline offset folds glyph
+    # holes (the A's counter) over themselves at this weight
+    for dx in (-0.09, -0.03, 0.03, 0.09):
+        for dy in (-0.05, 0.0, 0.05):
+            logo = text('BASYS 3', 4.4 + dx, -12.05 + dy, 3.1, mat='mask', z=SILK_Z + 0.02,
+                        bold=0.0001, name='logo_text')
+            logo.data.space_character = 1.1
+            logo.data.extrude = 0
+            logo.visible_shadow = False    # coplanar copies would shadow each other black
     # our own mark where vendor logos would be
     text('VIRTUALBASYS', 44.6, 5.6, 1.7, bold=0.03)
-    text('FPGA TRAINER BOARD', 44.6, 3.4, 1.0)
+    text('FPGA TRAINER BOARD', 44.6, 3.3, 1.15)
     text('94V-0', -18.0, 18.0, 0.9)
 
 
@@ -712,11 +721,12 @@ def build(resolution_scale=1.0, samples=256):
     softbox.light_linking.receiver_collection = metal
     sun = bpy.data.lights.new('key', 'SUN')
     sun.energy = 3.0
-    sun.angle = math.radians(9)
+    sun.angle = math.radians(15)
     key = bpy.data.objects.new('key', sun)
     scene.collection.objects.link(key)
-    # from the top left: tilted 32 degrees off vertical, heading down-right
-    key.rotation_euler = (math.radians(-32), 0, math.radians(40))
+    # from the top left: tilted 20 degrees off vertical, heading down-right,
+    # so shadows stay short enough to keep the silkscreen readable
+    key.rotation_euler = (math.radians(-20), 0, math.radians(40))
     world = bpy.data.worlds.new('studio')
     world.use_nodes = True
     nt = world.node_tree
@@ -724,7 +734,7 @@ def build(resolution_scale=1.0, samples=256):
     hdri = os.path.join(bpy.utils.system_resource('DATAFILES', path='studiolights/world'), 'studio.exr')
     env.image = bpy.data.images.load(hdri)
     nt.links.new(env.outputs['Color'], nt.nodes['Background'].inputs['Color'])
-    nt.nodes['Background'].inputs['Strength'].default_value = 0.45
+    nt.nodes['Background'].inputs['Strength'].default_value = 0.5
     scene.world = world
 
     cam_data = bpy.data.cameras.new('cam')
@@ -765,7 +775,7 @@ def build(resolution_scale=1.0, samples=256):
 # The rendered area: the board plus its overhanging connectors and shadow
 CANVAS_W, CANVAS_H = 134.0, 89.0
 CANVAS_CX, CANVAS_CY = 0.0, 4.5
-PX_PER_MM = 16
+PX_PER_MM = 24
 
 
 # ----------------------------------------------------------------------------- live parts

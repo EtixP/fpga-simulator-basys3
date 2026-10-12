@@ -28,6 +28,15 @@ multiplex sampling, brightness decay or simulation stepping.
 
 The default layout fits the whole board. Narrower panes scroll while preserving
 usable control sizes; keyboard focus reveals the focused input automatically.
+
+Zoom in to read the silkscreen or work closely: ⌘-scroll (Ctrl-scroll elsewhere)
+or a trackpad pinch zooms around the pointer, and the −, Fit and + buttons in the
+BOARD pane's title bar and ⌘= / ⌘− / ⌘0 step the zoom or fit the board again. The
+board magnifies up to the render's own resolution (24 px per mm); a board still
+narrower than the pane grows about its centre. A zoomed pane scrolls or pans; the
+parts keep working, the VGA monitor keeps its size, and zooming never advances
+virtual time. A part's tooltip opens clear of the part at any zoom, so it never
+takes the click meant for the part.
 The shell follows the OS keyboard-navigation preference. Test fixtures explicitly
 enable full Tab navigation so every bound input is checked on macOS as well.
 

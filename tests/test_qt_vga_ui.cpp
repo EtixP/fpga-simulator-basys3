@@ -12,6 +12,8 @@
 #include <QScreen>
 #include <QStyleHints>
 #include <QWheelEvent>
+
+#include <cmath>
 #include <QtQml/qqmlextensionplugin.h>
 
 #include <functional>
@@ -304,6 +306,30 @@ private slots:
                          qPrintable(compareDisplay(ui_->window, display(), barPixel, viewport())));
         }
         QVERIFY(capture("vga-monitor-minimum"));
+    }
+
+    // Zooming the board keeps the monitor at the visible pane's width: it
+    // neither magnifies the monitor nor moves the board from under the pointer.
+    void zoomingTheBoardLeavesTheMonitorAlone() {
+        for (int step = 0; step < 4; ++step) QVERIFY(stepMillion());
+        const qreal displayWidth = display()->width();
+        auto* target = ui_->item("sw7");
+        QVERIFY(ui_->reveal(target));
+        auto* view = ui_->item("boardView");
+        const double fit = view->property("boardScale").toDouble();
+        for (int notch = 0; notch < 4; ++notch) {
+            const QPointF at = ui_->bounds(target).center();
+            QWheelEvent event(at, ui_->window->mapToGlobal(at), QPoint(), QPoint(0, 120),
+                              Qt::NoButton, Qt::ControlModifier, Qt::NoScrollPhase, false);
+            wheelTimestamp_ += 500;
+            event.setTimestamp(wheelTimestamp_);
+            QGuiApplication::sendEvent(ui_->window, &event);
+            QTRY_VERIFY(view->property("boardScale").toDouble() > fit * std::pow(1.25, notch) * 1.1);
+            QTest::qWait(100);  // let the layout settle: a resized monitor would move the board
+            QVERIFY2((ui_->bounds(target).center() - at).manhattanLength() < 2.0,
+                     qPrintable(QStringLiteral("notch %1: SW7 moved from under the pointer").arg(notch)));
+            QCOMPARE(display()->width(), displayWidth);
+        }
     }
 
     void wideWorkspaceShowsExactTwoTimesScale() {

@@ -14,9 +14,12 @@ Control {
     Accessible.role: Accessible.StaticText
     Accessible.name: qsTr("%1: %2").arg(resource).arg(!available
         ? qsTr("not connected") : active ? qsTr("on") : qsTr("off"))
-    ToolTip.visible: hovered
-    ToolTip.text: !available ? qsTr("%1 is not connected").arg(resource)
-        : qsTr("%1 · %2").arg(resource).arg(active ? qsTr("On") : qsTr("Off"))
+    BoardToolTip {
+        target: control
+        showing: control.hovered
+        text: !control.available ? qsTr("%1 is not connected").arg(control.resource)
+            : qsTr("%1 · %2").arg(control.resource).arg(control.active ? qsTr("On") : qsTr("Off"))
+    }
 
     // An LED on the rendered board: when lit, its sprite (a render of this LED
     // lit, with its glow) covers the board image. Unbound LEDs are veiled.
